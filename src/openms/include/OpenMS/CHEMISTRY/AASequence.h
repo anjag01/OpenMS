@@ -1,4 +1,4 @@
-// Copyright (c) 2002-2023, The OpenMS Team -- EKU Tuebingen, ETH Zurich, and FU Berlin
+// Copyright (c) 2002-present, The OpenMS Team -- EKU Tuebingen, ETH Zurich, and FU Berlin
 // SPDX-License-Identifier: BSD-3-Clause
 //
 // --------------------------------------------------------------------------
@@ -82,7 +82,7 @@ namespace OpenMS
 
       @ingroup Chemistry
   */
-  class OPENMS_DLLAPI AASequence
+  class OPENMS_DLLAPI AASequence final
   {
 public:
 
@@ -334,7 +334,7 @@ protected:
     //@{
 
     /// Default constructor
-    AASequence();
+    AASequence() = default;
 
     /// Copy constructor
     AASequence(const AASequence&) = default;
@@ -343,14 +343,14 @@ protected:
     AASequence(AASequence&&) noexcept = default;
 
     /// Destructor
-    virtual ~AASequence();
+    virtual ~AASequence() = default;
     //@}
 
     /// Assignment operator
     AASequence& operator=(const AASequence&) = default;
 
     /// Move assignment operator
-    AASequence& operator=(AASequence&&) = default; // TODO: add noexcept (gcc 4.8 bug)
+    AASequence& operator=(AASequence&&) noexcept = default;
 
     /// check if sequence is empty
     bool empty() const;
@@ -414,17 +414,17 @@ protected:
     /// sets the modification of AA at @p index by providing an already, potentially modified residue
     void setModification(Size index, const Residue* modification);
 
-    /// sets the modification of AA at @p index by providing a pointer to a @class ResidueModification object found in the @class ModificationsDB
+    /// sets the modification of AA at @p index by providing a pointer to a ResidueModification object found in the ModificationsDB
     void setModification(Size index, const ResidueModification* modification);
 
-    /// sets the modification of AA at @p index by providing a @class ResidueModification object
+    /// sets the modification of AA at @p index by providing a ResidueModification object
     /// stricter than just looking for the name and adds the Modification to the DB if not present
     void setModification(Size index, const ResidueModification& modification);
 
-    /// modifies the residue at @p index in the sequence and potentially in the @class ResidueDB
+    /// modifies the residue at @p index in the sequence and potentially in the ResidueDB
     void setModificationByDiffMonoMass(Size index, double diffMonoMass);
 
-    /// sets the N-terminal modification (by lookup in the mod names of the @class ModificationsDB)
+    /// sets the N-terminal modification (by lookup in the mod names of the ModificationsDB)
     /// throws if nothing is found (since the name is not enough information to create a new mod)
     void setNTerminalModification(const String& modification);
 
@@ -443,7 +443,7 @@ protected:
     /// returns a pointer to the N-terminal modification, or zero if none is set
     const ResidueModification* getNTerminalModification() const;
 
-    /// sets the C-terminal modification (by lookup in the mod names of the @class ModificationsDB)
+    /// sets the C-terminal modification (by lookup in the mod names of the ModificationsDB)
     /// throws if nothing is found (since the name is not enough information to create a new mod)
     void setCTerminalModification(const String& modification);
 
@@ -597,13 +597,31 @@ protected:
     static AASequence fromString(const char* s,
                                  bool permissive = true);
 
+    /// @brief constructor from String
+    /// @param s A String representing the amino acid sequence
+    explicit AASequence(const String& s);
+
+    /// @brief constructor from C string
+    /// @param s A C-style string representing the amino acid sequence
+    explicit AASequence(const char* s);
+
+    /// @brief constructor from String
+    /// @param s A String representing the amino acid sequence
+    /// @param permissive If set, skip spaces and replace stop codon symbols ("*", "#", "+") by "X" (unknown amino acid) during parsing
+    explicit AASequence(const String& s, bool permissive);
+
+    /// @brief constructor from C string
+    /// @param s A C-style string representing the amino acid sequence
+    /// @param permissive If set, skip spaces and replace stop codon symbols ("*", "#", "+") by "X" (unknown amino acid) during parsing
+    explicit AASequence(const char* s, bool permissive);
+
   protected:
 
     std::vector<const Residue*> peptide_;
 
-    const ResidueModification* n_term_mod_;
+    const ResidueModification* n_term_mod_ = nullptr;
 
-    const ResidueModification* c_term_mod_;
+    const ResidueModification* c_term_mod_ = nullptr;
 
     /**
       @brief Parses modifications in round brackets (an identifier)
