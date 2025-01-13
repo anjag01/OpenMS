@@ -16,7 +16,7 @@ namespace OpenMS
 {
 
   const std::string NamesOfDriftTimeUnit[] = {"<NONE>", "ms", "1/K0", "FAIMS_CV"};
-  const std::string NamesOfIMFormat[] = {"none", "concatenated", "multiple_spectra", "mixed"};
+  const std::string NamesOfIMFormat[] = {"none", "concatenated", "multiple_spectra", "mixed", "centroided"};
 
 
  DriftTimeUnit toDriftTimeUnit(const std::string& dtu_string)
