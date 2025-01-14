@@ -36,7 +36,7 @@ namespace OpenMS
 public:
 
     /// Constructor
-    MetaInfoInterface();
+    MetaInfoInterface() = default;
     /// Copy constructor
     MetaInfoInterface(const MetaInfoInterface& rhs);
     /// Move constructor
