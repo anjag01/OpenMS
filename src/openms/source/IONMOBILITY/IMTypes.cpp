@@ -16,7 +16,7 @@ namespace OpenMS
 {
 
   const std::string NamesOfDriftTimeUnit[] = {"<NONE>", "ms", "1/K0", "FAIMS_CV"};
-  const std::string NamesOfIMFormat[] = {"none", "concatenated", "multiple_spectra", "mixed", "centroided"};
+  const std::string NamesOfIMFormat[] = {"none", "concatenated", "multiple_spectra", "mixed", "centroided", "unknown"};
 
 
  DriftTimeUnit toDriftTimeUnit(const std::string& dtu_string)
@@ -94,6 +94,14 @@ namespace OpenMS
 
   IMFormat IMTypes::determineIMFormat(const MSSpectrum& spec)
   {
+    // First check if format is already set and not UNKNOWN
+    IMFormat current_format = spec.getIMFormat();
+    if (current_format != IMFormat::UNKNOWN)
+    {
+      return current_format;
+    }
+
+    // If format is UNKNOWN, determine it
     bool has_float_data = spec.containsIMData(); // cache value; query is 'expensive'
     bool has_drift_time = spec.getDriftTime() != DRIFTTIME_NOT_SET;
     if (has_float_data && has_drift_time) // TODO: possible. CONCATENATED or CENTROIDED

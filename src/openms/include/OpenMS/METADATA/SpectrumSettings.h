@@ -3,7 +3,7 @@
 //
 // --------------------------------------------------------------------------
 // $Maintainer: Timo Sachsenberg $
-// $Authors: Marc Sturm $
+// $Authors: Marc Sturm, Timo Sachsenberg $
 // --------------------------------------------------------------------------
 
 #pragma once
@@ -16,6 +16,7 @@
 #include <OpenMS/METADATA/Product.h>
 #include <OpenMS/METADATA/PeptideIdentification.h>
 #include <OpenMS/METADATA/DataProcessing.h>
+#include <OpenMS/IONMOBILITY/IMTypes.h>
 
 #include <map>
 #include <vector>
@@ -77,6 +78,14 @@ public:
     SpectrumType getType() const;
     ///sets the spectrum type
     void setType(SpectrumType type);
+
+    /// @brief sets the IMFormat of the spectrum
+    /// @param im_type
+    void setIMFormat(const IMFormat& im_type);
+
+    /// @brief returns the IMFormat of the spectrum
+    /// @return IMFormat of the spectrum
+    IMFormat getIMFormat() const;
 
     /// returns the native identifier for the spectrum, used by the acquisition software.
     const String & getNativeID() const;
@@ -142,6 +151,7 @@ public:
 protected:
 
     SpectrumType type_;
+    IMFormat im_type_;
     String native_id_;
     String comment_;
     InstrumentSettings instrument_settings_;

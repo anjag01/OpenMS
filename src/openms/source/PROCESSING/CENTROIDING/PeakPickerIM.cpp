@@ -11,8 +11,24 @@
 namespace OpenMS
 {
     void PeakPickerIM::pickIMTraces(MSSpectrum& spectrum)
-    {
-        // Implementation here
+    {        
+        // determine IM format of spectrum
+        IMFormat format = IMTypes::determineIMFormat(spectrum);
+        switch (format)
+        {
+            case IMFormat::NONE:
+                return; // no IM data
+            case IMFormat::CENTROIDED:
+                return; // already centroided
+            case IMFormat::CONCATENATED:
+                // TODO call peak picking algorithm for concatenated IM data
+
+                // set format to centroided
+                spectrum.setIMFormat(IMFormat::CENTROIDED);
+                break;
+            default:
+                throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unknown IMFormat", String(NamesOfIMFormat[(size_t)format]));
+        }
     }
 
 } // namespace OpenMS

@@ -21,6 +21,7 @@ namespace OpenMS
   SpectrumSettings::SpectrumSettings() :
     MetaInfoInterface(),
     type_(UNKNOWN),
+    im_type_(IMFormat::UNKNOWN),
     native_id_(),
     comment_(),
     instrument_settings_(),
@@ -94,6 +95,16 @@ namespace OpenMS
     type_ = type;
   }
 
+  void SpectrumSettings::setIMFormat(const IMFormat& im_type)
+  {
+    im_type_ = im_type;
+  }
+  
+  IMFormat SpectrumSettings::getIMFormat() const
+  {
+    return im_type_;
+  }
+  
   const String & SpectrumSettings::getComment() const
   {
     return comment_;
