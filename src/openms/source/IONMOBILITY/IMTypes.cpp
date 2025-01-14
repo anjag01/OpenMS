@@ -73,24 +73,30 @@ namespace OpenMS
     if (occs.empty())
     {
       return IMFormat::NONE;
-    }
-    if (occs.size() == 1 && (occs.find(IMFormat::CONCATENATED) != occs.end() || occs.find(IMFormat::MULTIPLE_SPECTRA) != occs.end()))
+    }    
+
+    if (occs.size() == 1) 
     {
-      return *occs.begin();
+      auto format = *occs.begin();
+      if(!(format != IMFormat::CONCATENATED 
+        || format != IMFormat::MULTIPLE_SPECTRA
+        || format != IMFormat::CENTROIDED))
+        {
+          throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "subfunction returned invalid value(s)", "Number of different values: " + String(occs.size()));
+        }
+      return format;
     }
-    if (occs.size() == 2 && occs.find(IMFormat::CONCATENATED) != occs.end() && occs.find(IMFormat::MULTIPLE_SPECTRA) != occs.end())
+    else    
     {
       return IMFormat::MIXED;
-    }
-
-    throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "subfunction returned invalid value(s)", "Number of different values: " + String(occs.size()));
+    }    
   }
 
   IMFormat IMTypes::determineIMFormat(const MSSpectrum& spec)
   {
     bool has_float_data = spec.containsIMData(); // cache value; query is 'expensive'
     bool has_drift_time = spec.getDriftTime() != DRIFTTIME_NOT_SET;
-    if (has_float_data && has_drift_time)
+    if (has_float_data && has_drift_time) // TODO: possible. CONCATENATED or CENTROIDED
     {
       const auto& fda = spec.getFloatDataArrays()[spec.getIMData().first];
       String array_val = fda.empty() ? "[empty]" : String(fda[0]);
@@ -99,7 +105,7 @@ namespace OpenMS
 
     if (has_float_data)
     {
-      return IMFormat::CONCATENATED;
+      return IMFormat::CONCATENATED; // TODO: or CENTROIDED
     }
     else if (has_drift_time)
     {
