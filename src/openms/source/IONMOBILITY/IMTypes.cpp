@@ -104,16 +104,14 @@ namespace OpenMS
     // If format is UNKNOWN, determine it
     bool has_float_data = spec.containsIMData(); // cache value; query is 'expensive'
     bool has_drift_time = spec.getDriftTime() != DRIFTTIME_NOT_SET;
-    if (has_float_data && has_drift_time) // TODO: possible. CONCATENATED or CENTROIDED
-    {
-      const auto& fda = spec.getFloatDataArrays()[spec.getIMData().first];
-      String array_val = fda.empty() ? "[empty]" : String(fda[0]);
-      throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "MSSpectrum contains both an float-data-array and a single drift time. At most one is allowed per spectrum!", String("Array: ") + array_val + ", ... <> Spec: " + spec.getDriftTime());
-    }
 
     if (has_float_data)
     {
-      return IMFormat::CONCATENATED; // TODO: or CENTROIDED
+      if (has_drift_time)
+      {
+        OPENMS_LOG_DEBUG << "both drift time and IM data array found in spectrum " << spec.getNativeID() << "\n. Support for both is experimental." << std::endl;
+      }
+      return IMFormat::CONCATENATED; // TODO: or CENTROIDED. for now assume that no picking was done (otherwise we would have annotated it)
     }
     else if (has_drift_time)
     {
