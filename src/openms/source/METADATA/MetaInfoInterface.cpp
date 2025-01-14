@@ -14,12 +14,6 @@ using namespace std;
 
 namespace OpenMS
 {
-
-  MetaInfoInterface::MetaInfoInterface() :
-    meta_(nullptr)
-  {
-  }
-
   /// Copy constructor
   MetaInfoInterface::MetaInfoInterface(const MetaInfoInterface& rhs) :
     meta_(nullptr)

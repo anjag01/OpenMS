@@ -107,8 +107,8 @@ protected:
     /// Creates the MetaInfo object if it does not exist
     inline void createIfNotExists_();
 
-    /// Pointer to the MetaInfo object (0 by default)
-    MetaInfo* meta_;
+    /// Pointer to the MetaInfo object
+    MetaInfo* meta_ = nullptr;
   };
 
 } // namespace OpenMS
