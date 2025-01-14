@@ -129,7 +129,7 @@ START_SECTION(static IMFormat determineIMFormat(const MSExperiment& exp))
     // test invalid format validation
     MSExperiment exp;
     MSSpectrum spec;
-    spec.setIMType(IMFormat::MIXED); // this should trigger the validation check
+    spec.setIMFormat(IMFormat::MIXED); // this should trigger the validation check because a single spectrum can't be mixed
     exp.addSpectrum(spec);
     TEST_EXCEPTION(Exception::InvalidValue, IMTypes::determineIMFormat(exp))            
   }
