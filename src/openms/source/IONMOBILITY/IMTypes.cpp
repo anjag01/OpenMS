@@ -78,12 +78,12 @@ namespace OpenMS
     if (occs.size() == 1) 
     {
       auto format = *occs.begin();
-      if(format != IMFormat::CONCATENATED 
-        || format != IMFormat::MULTIPLE_SPECTRA
-        || format != IMFormat::CENTROIDED)
-        {
-          throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "subfunction returned invalid value(s)", "Number of different values: " + String(occs.size()));
-        }
+      if (format != IMFormat::CONCATENATED
+          && format != IMFormat::MULTIPLE_SPECTRA
+          && format != IMFormat::CENTROIDED)
+      {
+        throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "subfunction returned invalid value(s)", "Number of different values: " + String(occs.size()));
+      }
       return format;
     }
     else    
