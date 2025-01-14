@@ -53,13 +53,13 @@ public:
     static const std::string NamesOfSpectrumType[SIZE_OF_SPECTRUMTYPE];
 
     /// Constructor
-    SpectrumSettings();
+    SpectrumSettings() = default;
     /// Copy constructor
     SpectrumSettings(const SpectrumSettings &) = default;
     /// Move constructor
-    SpectrumSettings(SpectrumSettings&&) = default;
+    SpectrumSettings(SpectrumSettings&&) noexcept = default;
     /// Destructor
-    ~SpectrumSettings();
+    ~SpectrumSettings() noexcept = default;
 
     // Assignment operator
     SpectrumSettings & operator=(const SpectrumSettings &) = default;
@@ -83,7 +83,9 @@ public:
     /// @param im_type
     void setIMFormat(const IMFormat& im_type);
 
-    /// @brief returns the IMFormat of the spectrum
+    /// @brief returns the IMFormat of the spectrum if set. Otherwise UNKNOWN (default). 
+    /// 
+    /// Note: If UNKNOWN, use IMFormat::determineIMFormat to determine the IMFormat based on the data.
     /// @return IMFormat of the spectrum
     IMFormat getIMFormat() const;
 
@@ -150,8 +152,8 @@ public:
 
 protected:
 
-    SpectrumType type_;
-    IMFormat im_type_;
+    SpectrumType type_ = UNKNOWN;
+    IMFormat im_type_ = IMFormat::UNKNOWN;
     String native_id_;
     String comment_;
     InstrumentSettings instrument_settings_;

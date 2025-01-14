@@ -46,7 +46,7 @@ namespace OpenMS
     CONCATENATED,    ///< ion mobility frame is stacked in a single spectrum (i.e. has an IM float data array)
     MULTIPLE_SPECTRA,///< ion mobility is recorded as multiple spectra per frame (i.e. has one IM annotation per spectrum)
     MIXED,           ///< an MSExperiment contains both CONCATENATED and MULTIPLE_SPECTRA
-    CENTROIDED,      ///< ion mobility of peaks after centroiding in IM dimension. Ion mobility is annotated in a single float data array (i.e., each peak might have a different IM value in the data array)
+    CENTROIDED,      ///< ion mobility of peaks after centroiding in IM dimension. Ion mobility is annotated in a single float data array (i.e., each peak might have a different IM value in the data array); identical to CONCATENATED in terms of data layout.
     UNKNOWN,         ///< ion mobility format not yet determined
     SIZE_OF_IMFORMAT
   };

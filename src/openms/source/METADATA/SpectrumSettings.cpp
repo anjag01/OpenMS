@@ -9,7 +9,6 @@
 #include <OpenMS/METADATA/SpectrumSettings.h>
 
 #include <OpenMS/CONCEPT/Helpers.h>
-#include <boost/iterator/indirect_iterator.hpp> // for equality
 
 using namespace std;
 
@@ -17,24 +16,6 @@ namespace OpenMS
 {
 
   const std::string SpectrumSettings::NamesOfSpectrumType[] = {"Unknown", "Centroid", "Profile"};
-
-  SpectrumSettings::SpectrumSettings() :
-    MetaInfoInterface(),
-    type_(UNKNOWN),
-    im_type_(IMFormat::UNKNOWN),
-    native_id_(),
-    comment_(),
-    instrument_settings_(),
-    source_file_(),
-    acquisition_info_(),
-    precursors_(),
-    products_(),
-    identification_(),
-    data_processing_()
-  {
-  }
-
-  SpectrumSettings::~SpectrumSettings() = default;
 
   bool SpectrumSettings::operator==(const SpectrumSettings & rhs) const
   {
