@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <OpenMS/DATASTRUCTURES/DefaultParamHandler.h>
+#include <OpenMS/KERNEL/MSSpectrum.h>
 
 namespace OpenMS
 {
@@ -20,7 +20,7 @@ namespace OpenMS
   class OPENMS_DLLAPI PeakPickerIM
   {
     public:
-        static pickIMTraces(MSSpectrum& spectrum);
+        static void pickIMTraces(MSSpectrum& spectrum);
   };
 
 } // namespace OpenMS

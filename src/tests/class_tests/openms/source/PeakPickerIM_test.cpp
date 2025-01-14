@@ -8,7 +8,7 @@
 
 #include <OpenMS/CONCEPT/ClassTest.h>
 #include <OpenMS/test_config.h>
-#include <OpenMS/FORMAT/MzMLFile.h>
+#include <OpenMS/KERNEL/MSSpectrum.h>
 
 ///////////////////////////
 #include <OpenMS/PROCESSING/CENTROIDING/PeakPickerIM.h>
@@ -36,11 +36,9 @@ END_SECTION
 
 
 // create dummy ion mobility spectrum
+MSSpectrum input;
 {
-    MSSpectrum input;
-
     const size_t points_per_im = 10;
-    const size_t num_im_values = 10;
 
     // For each ion mobility value (1.0 to 10.0)
     for (double im = 1.0; im <= 10.0; im += 1.0)
@@ -77,14 +75,13 @@ START_SECTION(void pickIMTraces(MSSpectrum& spectrum))
     PeakPickerIM pp_im;
     pp_im.pickIMTraces(input);
     // TODO adapt
-    TEST_EQUAL(output.size(), 10)
-    TEST_REAL_SIMILAR(output[0].getIntensity(), 450)
-    TEST_REAL_SIMILAR(output[0].getMZ(), 100.02)
+    TEST_EQUAL(input.size(), 10)
+    TEST_REAL_SIMILAR(input[0].getIntensity(), 450)
+    TEST_REAL_SIMILAR(input[0].getMZ(), 100.02)
 
-    TEST_EQUAL(output.getFloatDataArrays().size(), 1)
-    TEST_EQUAL(output.getFloatDataArrays()[0].getName(), "Ion Mobility")
-    TEST_REAL_SIMILAR(output.getFloatDataArrays()[0][0], 150.0)
-  }
+    TEST_EQUAL(input.getFloatDataArrays().size(), 1)
+    TEST_EQUAL(input.getFloatDataArrays()[0].getName(), "Ion Mobility")
+    TEST_REAL_SIMILAR(input.getFloatDataArrays()[0][0], 150.0)
 }
 END_SECTION
 
