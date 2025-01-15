@@ -26,6 +26,8 @@ namespace OpenMS
                 // set format to centroided
                 spectrum.setIMFormat(IMFormat::CENTROIDED);
                 break;
+            case IMFormat::UNKNOWN:
+                throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "IMFormat set to UNKNOWN after deterineIMFormat. This should never happen. Please contact the developers.", String(NamesOfIMFormat[(size_t)format]));
             default:
                 throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unknown IMFormat", String(NamesOfIMFormat[(size_t)format]));
         }
