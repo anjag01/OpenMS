@@ -1,4 +1,4 @@
-// Copyright (c) 2002-present, The OpenMS Team -- EKU Tuebingen, ETH Zurich, and FU Berlin
+// Copyright (c) 2002-present, OpenMS Inc. -- EKU Tuebingen, ETH Zurich, and FU Berlin
 // SPDX-License-Identifier: BSD-3-Clause
 //
 // --------------------------------------------------------------------------
@@ -94,7 +94,7 @@ namespace OpenMS
 
 #ifdef OPENMS_WINDOWSPLATFORM
         int size = sizeof(path);
-        if (GetModuleFileName(NULL, path, size))
+        if (GetModuleFileNameA(NULL, path, size))
 #elif  defined(__APPLE__)
         uint size = sizeof(path);
         if (_NSGetExecutablePath(path, &size) == 0)

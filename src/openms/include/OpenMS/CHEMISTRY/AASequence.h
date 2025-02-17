@@ -1,4 +1,4 @@
-// Copyright (c) 2002-present, The OpenMS Team -- EKU Tuebingen, ETH Zurich, and FU Berlin
+// Copyright (c) 2002-present, OpenMS Inc. -- EKU Tuebingen, ETH Zurich, and FU Berlin
 // SPDX-License-Identifier: BSD-3-Clause
 //
 // --------------------------------------------------------------------------
@@ -92,7 +92,7 @@ public:
 
         AASequence constant iterator
     */
-    class OPENMS_DLLAPI ConstIterator
+    class OPENMS_DLLAPI ConstIterator final
     {
     public:
       // TODO Iterator constructor for ConstIterator
@@ -129,7 +129,7 @@ public:
       }
 
       /// destructor
-      virtual ~ConstIterator() = default;
+      ~ConstIterator() = default;
 
       //@}
 
@@ -210,7 +210,7 @@ protected:
 
         Mutable iterator for AASequence
     */
-    class OPENMS_DLLAPI Iterator
+    class OPENMS_DLLAPI Iterator final
     {
 public:
 
@@ -239,7 +239,7 @@ public:
       Iterator(const Iterator& rhs) = default;
 
       /// destructor
-      virtual ~Iterator() = default;
+      ~Iterator() = default;
 
       //@}
 
@@ -340,17 +340,17 @@ protected:
     AASequence(const AASequence&) = default;
 
     /// Move constructor
-    AASequence(AASequence&&) noexcept = default;
+    AASequence(AASequence&&) = default;
 
     /// Destructor
-    virtual ~AASequence() = default;
+    ~AASequence() = default;
     //@}
 
     /// Assignment operator
     AASequence& operator=(const AASequence&) = default;
 
     /// Move assignment operator
-    AASequence& operator=(AASequence&&) noexcept = default;
+    AASequence& operator=(AASequence&&) = default;
 
     /// check if sequence is empty
     bool empty() const;

@@ -1,4 +1,4 @@
-// Copyright (c) 2002-present, The OpenMS Team -- EKU Tuebingen, ETH Zurich, and FU Berlin
+// Copyright (c) 2002-present, OpenMS Inc. -- EKU Tuebingen, ETH Zurich, and FU Berlin
 // SPDX-License-Identifier: BSD-3-Clause
 //
 // --------------------------------------------------------------------------
@@ -467,10 +467,6 @@ protected:
     std::vector<String> NTerm_loss_names_;
 
     std::vector<EmpiricalFormula> NTerm_loss_formulas_;
-
-    double loss_average_weight_;
-
-    double loss_mono_weight_;
 
     /// low mass markers like immonium ions
     std::vector<EmpiricalFormula> low_mass_ions_;
