@@ -10,7 +10,8 @@
 #include <OpenMS/PROCESSING/CENTROIDING/PeakPickerHiRes.h>
 #include <OpenMS/KERNEL/MSSpectrum.h>
 #include <OpenMS/CONCEPT/Exception.h>
-#include <OpenMS/DATASTRUCTURES/Param.h>  // Updated include
+#include <OpenMS/DATASTRUCTURES/Param.h>
+#include <OpenMS/PROCESSING/RESAMPLING/LinearResamplerAlign.h>
 #include <iostream>
 
 namespace OpenMS
@@ -71,6 +72,26 @@ namespace OpenMS
                 // TODO call peak picking algorithm for concatenated IM data
                 std::cout << "Processing concatenated IM data..." << std::endl;
                 std::cout << "Size of input spectrum..." << spectrum.size() << std::endl;
+
+                // initialize resampling
+                // Set up custom parameters for the resampler:
+                double sampling_rate = 0.05;
+                bool ppm = false;
+                Param resampler_param;
+                resampler_param.setValue("spacing", sampling_rate, "Spacing of the resampled output peaks.");
+                resampler_param.setValue("ppm", ppm ? "true" : "false", "Whether spacing is in ppm or Th");
+
+                LinearResamplerAlign lin_resampler;
+                lin_resampler.setParameters(resampler_param);
+
+                lin_resampler.raster(spectrum);
+                std::cout << "Size of resampled spectrum: " << spectrum.size() << std::endl;
+                std::cout << "Resampled spectrum printing...: " << std::endl;
+                for (const auto& peak : spectrum)
+                {
+                  std::cout << "m/z: " << peak.getMZ()
+                            << ", intensity: " << peak.getIntensity() << std::endl;
+                }
 
                 PeakPickerHiRes picker;
                 // Forward the parameters from this object to the underlying picker
