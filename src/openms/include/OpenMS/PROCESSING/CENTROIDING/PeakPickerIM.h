@@ -18,7 +18,7 @@ namespace OpenMS
 
   @ingroup PeakPicking
       */
-    class OPENMS_DLLAPI PeakPickerIM
+  class OPENMS_DLLAPI PeakPickerIM
   {
   public:
     /// Default constructor initializing parameters with default values.
@@ -45,6 +45,10 @@ namespace OpenMS
 
     /// Stores the parameters for peak picking.
     Param parameters_;
+
+  private:
+    /// determine sampling rate for linear resampler
+    double computeOptimalSamplingRate(const MSSpectrum& spectrum);
   };
 
 } // namespace OpenMS

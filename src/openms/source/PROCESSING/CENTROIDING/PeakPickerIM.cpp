@@ -16,7 +16,70 @@
 
 namespace OpenMS
 {
-    // Constructor: initialize the parameters_ member with default parameters.
+    double PeakPickerIM::computeOptimalSamplingRate(const MSSpectrum& spectrum)
+    {
+      if (spectrum.size() < 2)
+      {
+        std::cerr << "Warning: Spectrum has too few points for resampling. Using fixed sampling rate of 0.001 1/k" << std::endl;
+        return 0.001; // Default fallback value
+      }
+
+      std::vector<double> mz_diffs;
+      mz_diffs.reserve(spectrum.size() - 1);
+
+      for (size_t i = 1; i < spectrum.size(); ++i)
+      {
+        mz_diffs.push_back(spectrum[i].getMZ() - spectrum[i - 1].getMZ());
+      }
+
+      // A mobilogram may have two peaks spaced far apart but in the 'm/z' array,
+      // the peaks are adjacent to each other and will result in a big mz_dff.
+      // Take the 75% percentile to remove large m/z gaps.
+      std::vector<double> filtered_mz_diffs = mz_diffs;
+      std::sort(filtered_mz_diffs.begin(), filtered_mz_diffs.end());
+      double threshold = filtered_mz_diffs[filtered_mz_diffs.size() * 0.75];
+      std::cerr << "75% percentile of ion mobility difference is determined to be... " << threshold << std::endl;
+
+      std::vector<double> small_mz_diffs;
+      for (double diff : mz_diffs)
+      {
+        if (diff <= threshold)
+        {
+          small_mz_diffs.push_back(diff);
+        }
+      }
+
+      if (small_mz_diffs.empty())
+      {
+        std::cerr << "Warning: No valid small m/z differences found. Using default sampling rate. Using fixed sampling rate of 0.001 1/k" << std::endl;
+        return 0.001; // Default fallback value
+      }
+
+      // Step 2: Compute mode (most common spacing)
+      std::map<double, int> freq_map;
+      for (double diff : small_mz_diffs)
+      {
+        freq_map[diff]++;
+      }
+
+      double mode_sampling_rate = small_mz_diffs.front(); // Default to first value
+      int max_count = 0;
+      for (const auto& [diff, count] : freq_map)
+      {
+        if (count > max_count)
+        {
+          mode_sampling_rate = diff;
+          max_count = count;
+        }
+      }
+
+      // Compute final sampling rate
+      double sampling_rate = mode_sampling_rate;
+      std::cout << "Computed sampling rate: " << sampling_rate << std::endl;
+
+      return sampling_rate;
+    }
+
     PeakPickerIM::PeakPickerIM() :
         parameters_(getDefaultParameters())
     {
@@ -59,8 +122,12 @@ namespace OpenMS
     }
 
     void PeakPickerIM::pickIMTraces(MSSpectrum& spectrum)
-    {        
-        // determine IM format of spectrum
+    {
+        // Debugging: Print the input spectrum size
+        std::cout << "Processing spectrum with " << spectrum.size() << " peaks." << std::endl;
+
+        /*
+        // IM format determination (Temporarily commented out)
         IMFormat format = IMTypes::determineIMFormat(spectrum);
         switch (format)
         {
@@ -68,50 +135,50 @@ namespace OpenMS
                 return; // no IM data
             case IMFormat::CENTROIDED:
                 return; // already centroided
-            case IMFormat::CONCATENATED: {
-                // TODO call peak picking algorithm for concatenated IM data
-                std::cout << "Processing concatenated IM data..." << std::endl;
-                std::cout << "Size of input spectrum..." << spectrum.size() << std::endl;
-
-                // initialize resampling
-                // Set up custom parameters for the resampler:
-                double sampling_rate = 0.05;
-                bool ppm = false;
-                Param resampler_param;
-                resampler_param.setValue("spacing", sampling_rate, "Spacing of the resampled output peaks.");
-                resampler_param.setValue("ppm", ppm ? "true" : "false", "Whether spacing is in ppm or Th");
-
-                LinearResamplerAlign lin_resampler;
-                lin_resampler.setParameters(resampler_param);
-
-                lin_resampler.raster(spectrum);
-                std::cout << "Size of resampled spectrum: " << spectrum.size() << std::endl;
-                std::cout << "Resampled spectrum printing...: " << std::endl;
-                for (const auto& peak : spectrum)
-                {
-                  std::cout << "m/z: " << peak.getMZ()
-                            << ", intensity: " << peak.getIntensity() << std::endl;
-                }
-
-                PeakPickerHiRes picker;
-                // Forward the parameters from this object to the underlying picker
-                picker.setParameters(parameters_);
-                MSSpectrum picked_spectrum;
-
-                picker.pick(spectrum, picked_spectrum);
-                std::cout << "Size of picked_spectrum..." << picked_spectrum.size() << std::endl;
-
-                spectrum = picked_spectrum;
-
-                // set format to centroided
-                spectrum.setIMFormat(IMFormat::CENTROIDED);
-                break;
-            }
             case IMFormat::UNKNOWN:
-                throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "IMFormat set to UNKNOWN after determineIMFormat. This should never happen. Please contact the developers.", String(NamesOfIMFormat[(size_t)format]));
-            default:
-                throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unknown IMFormat", String(NamesOfIMFormat[(size_t)format]));
+                throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                    "IMFormat set to UNKNOWN after determineIMFormat. This should never happen.",
+                    String(NamesOfIMFormat[(size_t)format]));
         }
+        */
+
+        // Initialize resampling
+        double sampling_rate = computeOptimalSamplingRate(spectrum) * 4;
+        std::cout << "Using sampling rate: " << sampling_rate << std::endl;
+
+        // Set up custom parameters for the resampler
+        bool ppm = false;
+        Param resampler_param;
+        resampler_param.setValue("spacing", sampling_rate, "Spacing of the resampled output peaks.");
+        resampler_param.setValue("ppm", ppm ? "true" : "false", "Whether spacing is in ppm or Th");
+
+        LinearResamplerAlign lin_resampler;
+        lin_resampler.setParameters(resampler_param);
+
+        lin_resampler.raster(spectrum);
+        std::cout << "Size of resampled spectrum: " << spectrum.size() << std::endl;
+
+        // Print resampled peaks for debugging
+        for (const auto& peak : spectrum)
+        {
+            std::cout << "m/z: " << peak.getMZ()
+                      << ", intensity: " << peak.getIntensity() << std::endl;
+        }
+
+        // Apply PeakPickerHiRes
+        PeakPickerHiRes picker;
+        picker.setParameters(parameters_);
+        MSSpectrum picked_spectrum;
+
+        picker.pick(spectrum, picked_spectrum);
+        std::cout << "Size of picked spectrum: " << picked_spectrum.size() << std::endl;
+
+        // Replace original spectrum with processed version
+        spectrum = picked_spectrum;
+
+        // Temporarily skipping IM format setting since we commented out the check
+        // spectrum.setIMFormat(IMFormat::CENTROIDED);
     }
+
 
 } // namespace OpenMS
