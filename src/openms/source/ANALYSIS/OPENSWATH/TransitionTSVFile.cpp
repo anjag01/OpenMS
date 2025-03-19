@@ -147,7 +147,7 @@ namespace OpenMS
     std::string tmp;
     std::vector<std::string> header;
     int nr_delimiters = 3;
-    Size min_header_size = 8;
+    Size min_header_size = 1;
     const char possibleDelimiters[3] = {',', ';', '\t'};
 
     for (int i = 0; i < nr_delimiters; i++)
