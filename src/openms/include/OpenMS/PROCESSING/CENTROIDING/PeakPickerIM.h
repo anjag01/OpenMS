@@ -48,7 +48,24 @@ namespace OpenMS
 
   private:
     /// determine sampling rate for linear resampler
-    double computeOptimalSamplingRate(const MSSpectrum& spectrum);
+    double computeOptimalSamplingRate(const std::vector<MSSpectrum>& spectra);
+
+    /// Sum up the intensity of data points with nearly identical float values
+    MSSpectrum SumFrame(const MSSpectrum& spectrum, double ppm_tolerance = 0.01);
+
+    /// Compute lower and upper m/z bounds based on ppm
+    std::pair<double, double> ppmBounds(double mz, double ppm);
+
+    /// Extract ion mobility traces as MSSpectra from the raw TimsTOF frame
+    /// Ion mobility is temporarily written in place of m/z inside Peak1D object.
+    /// raw m/z values are allocated to float data arrays with the label 'raw_mz'
+    std::vector<MSSpectrum> extractIonMobilityTraces(
+      const MSSpectrum& picked_spectrum,
+      const MSSpectrum& raw_spectrum);
+
+    /// compute m/z and ion mobility centers for picked traces. Returns centroided spectrum.
+    MSSpectrum ComputeCenters(const std::vector<MSSpectrum>& mobilogram_traces,
+                              const std::vector<MSSpectrum>& picked_traces);
   };
 
 } // namespace OpenMS

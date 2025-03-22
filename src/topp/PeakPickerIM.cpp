@@ -26,10 +26,10 @@ protected:
   void registerOptionsAndFlags_() override
   {
     registerInputFile_("in", "<file>", "", "Input mzML file");
-    setValidFormats_("in", ListUtils::create<String>("mzML"));
+    setValidFormats_("in", { "mzML" });
 
     registerOutputFile_("out", "<file>", "", "Output mzML file");
-    setValidFormats_("out", ListUtils::create<String>("mzML"));
+    setValidFormats_("out", { "mzML" });
   }
 
   ExitCodes main_(int, const char**) override
