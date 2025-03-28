@@ -146,15 +146,14 @@ namespace OpenMS
   {
     std::string tmp;
     std::vector<std::string> header;
-    int nr_delimiters = 3;
-    Size min_header_size = 1;
-    const char possibleDelimiters[3] = {',', ';', '\t'};
+    Size min_header_size = 4;
+    const std::array<char, 3> possible_delimiters = {'\t', ';', ','};
 
-    for (int i = 0; i < nr_delimiters; i++)
+    for (auto possible_delimiter : possible_delimiters)
     {
       header.clear();
       std::stringstream lineStream(line);
-      delimiter = possibleDelimiters[i];
+      delimiter = possible_delimiter;
       while (std::getline(lineStream, tmp, delimiter))
       {
         String tmp2(tmp);
@@ -169,10 +168,27 @@ namespace OpenMS
       }
     }
 
+    bool valid_headers = true;
     for (Size i = 0; i < header.size(); i++)
     {
       header_dict[header[i]] = i;
+      bool valid_header = false;
+      for (auto header_name : header_names_) {
+        if (header_name == header[i]) {
+          valid_header = true;
+        }
+      }
+
+      if (!valid_header) {
+        valid_headers = false;
+      }
     }
+
+    if (!valid_headers) {
+      throw Exception::IllegalArgument(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+        "The provided TSV/CSV file is missing one or more required header columns. Please ensure it includes: PrecursorMz, ProductMz (or FragmentMz), LibraryIntensity (or RelativeFragmentIntensity), and NormalizedRetentionTime (or its synonyms).");
+    }
+
     char txt_delimiter = delimiter;
     if (txt_delimiter == '\t')
     {
