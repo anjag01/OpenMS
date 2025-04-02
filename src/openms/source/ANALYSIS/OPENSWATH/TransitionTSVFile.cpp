@@ -168,25 +168,9 @@ namespace OpenMS
       }
     }
 
-    bool valid_headers = true;
     for (Size i = 0; i < header.size(); i++)
     {
       header_dict[header[i]] = i;
-      bool valid_header = false;
-      for (auto header_name : header_names_) {
-        if (header_name == header[i]) {
-          valid_header = true;
-        }
-      }
-
-      if (!valid_header) {
-        valid_headers = false;
-      }
-    }
-
-    if (!valid_headers) {
-      throw Exception::IllegalArgument(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-        "The provided TSV/CSV file is missing one or more required header columns. Please ensure it includes: PrecursorMz, ProductMz (or FragmentMz), LibraryIntensity (or RelativeFragmentIntensity), and NormalizedRetentionTime (or its synonyms).");
     }
 
     char txt_delimiter = delimiter;
