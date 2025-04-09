@@ -92,22 +92,22 @@ namespace OpenMS
   // lists of peptide hits in "peptides" will be sorted
   bool MapAlignmentAlgorithmIdentification::getRetentionTimes_(
       vector<PeptideIdentification>& peptides, SeqToList& rt_data)
-  {
-    for (vector<PeptideIdentification>::iterator pep_it = peptides.begin();
-         pep_it != peptides.end(); ++pep_it)
-    {
-      if (!pep_it->getHits().empty())
       {
-        pep_it->sort();
-        if (better_(pep_it->getHits()[0].getScore(), min_score_))
+        for (vector<PeptideIdentification>::iterator pep_it = peptides.begin();
+             pep_it != peptides.end(); ++pep_it)
         {
-          const String& seq = pep_it->getHits()[0].getSequence().toString();
-          rt_data[seq].push_back(pep_it->getRT());
+          if (!pep_it->getHits().empty())
+          {
+            pep_it->sort();
+            if (better_(pep_it->getHits()[0].getScore(), min_score_))
+            {
+              const String& seq = pep_it->getHits()[0].getSequence().toString();
+              rt_data[seq].push_back(pep_it->getRT());
+            }
+          }
         }
+        return false;
       }
-    }
-    return false;
-  }
 
   IdentificationData::ScoreTypeRef
   MapAlignmentAlgorithmIdentification::handleIdDataScoreType_(const IdentificationData& id_data)
@@ -178,9 +178,9 @@ namespace OpenMS
 
   // lists of peptide hits in "maps" will be sorted
   bool MapAlignmentAlgorithmIdentification::getRetentionTimes_(
-      PeakMap& experiment, SeqToList& rt_data)
+      const PeakMap& experiment, SeqToList& rt_data)
   {
-    for (PeakMap::Iterator exp_it = experiment.begin();
+    for (PeakMap::ConstIterator exp_it = experiment.begin();
          exp_it != experiment.end(); ++exp_it)
     {
       getRetentionTimes_(exp_it->getPeptideIdentifications(), rt_data);

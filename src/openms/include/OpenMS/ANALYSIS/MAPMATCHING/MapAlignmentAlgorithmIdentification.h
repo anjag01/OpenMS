@@ -55,7 +55,7 @@ public:
     ~MapAlignmentAlgorithmIdentification() override;
 
     // Set a reference for the alignment
-    template <typename DataType> void setReference(DataType& data)
+    template <typename DataType> void setReference(const DataType& data)
     {
       reference_.clear();
       if (data.empty()) return; // empty input resets the reference
@@ -83,7 +83,7 @@ public:
       @throw Exception::MissingInformation Not enough suitable RT data to perform alignment
     */
     template <typename DataType>
-    void align(std::vector<DataType>& data,
+    void align(const std::vector<DataType>& data,
                std::vector<TransformationDescription>& transformations,
                Int reference_index = -1)
     {
@@ -201,7 +201,7 @@ protected:
 
       @return Are the RTs already sorted? (Here: false)
     */
-    bool getRetentionTimes_(PeakMap& experiment, SeqToList& rt_data);
+    bool getRetentionTimes_(const PeakMap& experiment, SeqToList& rt_data);
 
     /**
       @brief Collect retention time data from peptide IDs contained in feature maps or consensus maps
@@ -218,7 +218,7 @@ protected:
       @return Are the RTs already sorted? (Here: true)
     */
     template <typename MapType>
-    bool getRetentionTimes_(MapType& features, SeqToList& rt_data)
+    bool getRetentionTimes_(const MapType& features, SeqToList& rt_data)
     {
       if (!score_cutoff_)
       {
@@ -235,9 +235,8 @@ protected:
         better_ = [](double a, double b)
         { return a <= b; };
       }
-
-      for (typename MapType::Iterator feat_it = features.begin();
-           feat_it != features.end(); ++feat_it)
+      
+      for (typename MapType::ConstIterator feat_it = features.begin(); feat_it != features.end(); ++feat_it)
       {
         if (use_feature_rt_)
         {
@@ -245,21 +244,27 @@ protected:
           String sequence;
           double rt_distance = std::numeric_limits<double>::max();
           bool any_hit = false;
-          for (std::vector<PeptideIdentification>::iterator pep_it =
-                 feat_it->getPeptideIdentifications().begin(); pep_it !=
-                 feat_it->getPeptideIdentifications().end(); ++pep_it)
+
+          const auto& pep_ids = feat_it->getPeptideIdentifications();
+          for (const auto& pep_id : pep_ids)
           {
-            if (!pep_it->getHits().empty())
+            const auto& hits = pep_id.getHits();
+            if (! hits.empty())
             {
               any_hit = true;
-              double current_distance = fabs(pep_it->getRT() -
-                                             feat_it->getRT());
+              double current_distance = std::fabs(pep_id.getRT() - feat_it->getRT());
               if (current_distance < rt_distance)
               {
-                pep_it->sort();
-                if (better_(pep_it->getHits()[0].getScore(), min_score_))
+                // find the best-scoring hit without sorting
+                const PeptideHit* best_hit = nullptr;
+                for (const auto& hit : hits)
                 {
-                  sequence = pep_it->getHits()[0].getSequence().toString();
+                  if (! best_hit || better_(hit.getScore(), best_hit->getScore())) { best_hit = &hit; }
+                }
+
+                if (best_hit && better_(best_hit->getScore(), min_score_))
+                {
+                  sequence = best_hit->getSequence().toString();
                   rt_distance = current_distance;
                 }
               }
@@ -268,9 +273,8 @@ protected:
 
           if (any_hit) rt_data[sequence].push_back(feat_it->getRT());
         }
-        else
-        {
-          getRetentionTimes_(feat_it->getPeptideIdentifications(), rt_data);
+        else { 
+          getRetentionTimes_(feat_it->getPeptideIdentifications(), rt_data); 
         }
       }
 
