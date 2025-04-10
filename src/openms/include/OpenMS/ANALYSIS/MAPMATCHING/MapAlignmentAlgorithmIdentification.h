@@ -256,9 +256,17 @@ protected:
                                              feat_it->getRT());
               if (current_distance < rt_distance)
               {
-                if (better_(pep_it->getHits()[0].getScore(), min_score_))
+                const PeptideHit* best_hit = nullptr;
+                for (const auto& hit : pep_it->getHits())
                 {
-                  sequence = pep_it->getHits()[0].getSequence().toString();
+                  if (!best_hit || better_(hit.getScore(), best_hit->getScore()))
+                  {
+                    best_hit = &hit;
+                  }
+                }
+                if (best_hit && better_(best_hit->getScore(), min_score_))
+                {
+                  sequence = best_hit->getSequence().toString();
                   rt_distance = current_distance;
                 }
               }
