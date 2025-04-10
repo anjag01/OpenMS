@@ -98,9 +98,10 @@ namespace OpenMS
     {
       if (!pep_it->getHits().empty())
       {
-        if (better_(pep_it->getHits()[0].getScore(), min_score_))
+        const PeptideHit* best_hit = getBestScoringHit(pep_it->getHits(), better_);
+        if (better_(best_hit->getScore(), min_score_))
         {
-          const String& seq = pep_it->getHits()[0].getSequence().toString();
+          const String& seq = best_hit->getSequence().toString();
           rt_data[seq].push_back(pep_it->getRT());
         }
       }
@@ -355,5 +356,19 @@ namespace OpenMS
   // explicit template instantiation for Windows DLL:
   template bool OPENMS_DLLAPI MapAlignmentAlgorithmIdentification::getRetentionTimes_<>(const FeatureMap& features, SeqToList& rt_data);
 
+  const PeptideHit* MapAlignmentAlgorithmIdentification::getBestScoringHit(
+    const std::vector<PeptideHit>& hits,
+    const std::function<bool(double, double)>& better)
+  {
+    const PeptideHit* best_hit = nullptr;
+    for (const auto& hit : hits)
+    {
+      if (!best_hit || better(hit.getScore(), best_hit->getScore()))
+      {
+        best_hit = &hit;
+      }
+    }
+    return best_hit;
+  }
 
 } //namespace

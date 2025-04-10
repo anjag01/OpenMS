@@ -256,14 +256,7 @@ protected:
                                              feat_it->getRT());
               if (current_distance < rt_distance)
               {
-                const PeptideHit* best_hit = nullptr;
-                for (const auto& hit : pep_it->getHits())
-                {
-                  if (!best_hit || better_(hit.getScore(), best_hit->getScore()))
-                  {
-                    best_hit = &hit;
-                  }
-                }
+                const PeptideHit* best_hit = getBestScoringHit(pep_it->getHits(), better_);
                 if (best_hit && better_(best_hit->getScore(), min_score_))
                 {
                   sequence = best_hit->getSequence().toString();
@@ -334,6 +327,17 @@ protected:
       @return Reference to the score type denoted by algorithm parameter "score_type"
      */
     IdentificationData::ScoreTypeRef handleIdDataScoreType_(const IdentificationData& id_data);
+
+    /**
+      @brief Get the best-scoring PeptideHit from a list of hits
+
+      @param hits List of peptide hits
+      @param better Comparator function (e.g., [](double a, double b) { return a > b; })
+
+      @return Pointer to the best-scoring hit, or nullptr if the list is empty
+    */
+    const PeptideHit* getBestScoringHit(const std::vector<PeptideHit>& hits,
+                                        const std::function<bool(double, double)>& better);
 
 private:
 
