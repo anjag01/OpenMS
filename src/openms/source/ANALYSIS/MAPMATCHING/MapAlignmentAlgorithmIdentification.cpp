@@ -356,9 +356,9 @@ namespace OpenMS
   // explicit template instantiation for Windows DLL:
   template bool OPENMS_DLLAPI MapAlignmentAlgorithmIdentification::getRetentionTimes_<>(const FeatureMap& features, SeqToList& rt_data);
 
-  const PeptideHit* MapAlignmentAlgorithmIdentification::getBestScoringHit(const std::vector<PeptideHit>& hits, const bool higher_score_better)
+  const PeptideHit* MapAlignmentAlgorithmIdentification::getBestScoringHit(const std::vector<PeptideHit>& hits, const bool is_higher_score_better)
   {
-    auto scoreComparator = PeptideIdentification::getScoreComparator(higher_score_better);
+    auto scoreComparator = PeptideIdentification::getScoreComparator(is_higher_score_better);
     const PeptideHit* best_hit = nullptr;
     for (const auto& hit : hits)
     {

@@ -336,7 +336,7 @@ protected:
 
       @return Pointer to the best-scoring hit, or nullptr if the list is empty
     */
-    const PeptideHit* getBestScoringHit(const std::vector<PeptideHit>& hits, const bool isHigherScoreBetter);
+    const PeptideHit* getBestScoringHit(const std::vector<PeptideHit>& hits, const bool is_higher_score_better);
 
 private:
 
