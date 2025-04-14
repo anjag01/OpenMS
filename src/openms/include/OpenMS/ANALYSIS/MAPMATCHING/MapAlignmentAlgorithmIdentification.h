@@ -332,7 +332,7 @@ protected:
       @brief Get the best-scoring PeptideHit from a list of hits
 
       @param hits List of peptide hits
-      @param better Comparator function (e.g., [](double a, double b) { return a > b; })
+      @param isHigherScoreBetter Decides if higher score is better in deciding best scoring hit
 
       @return Pointer to the best-scoring hit, or nullptr if the list is empty
     */
