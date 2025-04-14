@@ -256,7 +256,7 @@ protected:
                                              feat_it->getRT());
               if (current_distance < rt_distance)
               {
-                const PeptideHit* best_hit = getBestScoringHit(pep_it->getHits(), better_);
+                const PeptideHit* best_hit = getBestScoringHit(pep_it->getHits(), pep_it->isHigherScoreBetter());
                 if (best_hit && better_(best_hit->getScore(), min_score_))
                 {
                   sequence = best_hit->getSequence().toString();
@@ -336,8 +336,7 @@ protected:
 
       @return Pointer to the best-scoring hit, or nullptr if the list is empty
     */
-    const PeptideHit* getBestScoringHit(const std::vector<PeptideHit>& hits,
-                                        const std::function<bool(double, double)>& better);
+    const PeptideHit* getBestScoringHit(const std::vector<PeptideHit>& hits, const bool isHigherScoreBetter);
 
 private:
 
