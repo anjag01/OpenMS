@@ -152,7 +152,7 @@ namespace OpenMS
 
   void MzMLFile::store(const String& filename, const PeakMap& map) const
   {
-    Internal::MzMLHandler handler(map, filename, getVersion(), *this)
+    Internal::MzMLHandler handler(map, filename, getVersion(), *this);
     handler.setOptions(options_);
     save_(filename, &handler);
   }
