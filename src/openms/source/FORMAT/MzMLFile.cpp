@@ -151,11 +151,37 @@ namespace OpenMS
   }
 
   void MzMLFile::store(const String& filename, const PeakMap& map) const
-  {
-    Internal::MzMLHandler handler(map, filename, getVersion(), *this);
+{
+    // Ensure the filename ends with .gz
+    String output_filename = filename;
+    if (!filename.hasSuffix(".gz"))
+    {
+        output_filename += ".gz";
+    }
+
+    std::ofstream file_out(output_filename.c_str(), std::ios::out | std::ios::binary);
+    
+    if (!file_out)
+    {
+        throw Exception::UnableToCreateFile(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, output_filename);
+    }
+
+    // Initialize the MzML handler
+    Internal::MzMLHandler handler(map, output_filename, getVersion(), *this);
     handler.setOptions(options_);
-    save_(filename, &handler);
-  }
+
+    // Apply gzip compression to the output
+    boost::iostreams::filtering_streambuf<boost::iostreams::output> out;
+    out.push(boost::iostreams::gzip_compressor()); // Apply gzip compression
+    out.push(file_out); // Write compressed data to file
+
+    std::ostream compressed_out(&out);
+    handler.writeTo(compressed_out);  // Write data in compressed format
+
+    // Ensure all data is flushed
+    boost::iostreams::close(out);
+    file_out.close();
+}
 
   void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
   {
