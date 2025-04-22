@@ -253,14 +253,14 @@ public:
     /// sets the PSM score
     void setScore(double score);
 
-    /// set information on (search engine) sub scores associated with this PSM
-    void setAnalysisResults(std::vector<PepXMLAnalysisResult> aresult);
+    /// set information on (search engine) sub scores associated with this PSM (only used by pepXML)
+    void setAnalysisResults(const std::vector<PepXMLAnalysisResult>& aresult);
 
-    /// add information on (search engine) sub scores associated with this PSM
+    /// add information on (search engine) sub scores associated with this PSM (only used by pepXML)
     void addAnalysisResults(const PepXMLAnalysisResult& aresult);
 
-    /// returns information on (search engine) sub scores associated with this PSM
-    const std::vector<PepXMLAnalysisResult>& getAnalysisResults() const;
+    /// returns information on (search engine) sub scores associated with this PSM (only used by pepXML)
+    std::vector<PepXMLAnalysisResult> getAnalysisResults() const;
 
     /// returns the PSM rank
     UInt getRank() const;
@@ -287,9 +287,6 @@ protected:
     /// the score of the peptide hit
     double score_{};
 
-    /// additional scores attached to the original, aggregated score
-    std::vector<PepXMLAnalysisResult>* analysis_results_;
-
     /// the position(rank) where the hit appeared in the hit list
     UInt rank_{};
 
@@ -301,6 +298,13 @@ protected:
 
     /// annotations of fragments in the corresponding spectrum
     std::vector<PeptideHit::PeakAnnotation> fragment_annotations_;
+
+private:
+    /// Get the number of analysis results stored as meta values (only for pepXML results)
+    size_t getNumberOfAnalysisResultsFromMetaValues_() const;
+
+    /// Extract analysis results from meta values (only for pepXML results)
+    std::vector<PepXMLAnalysisResult> extractAnalysisResultsFromMetaValues_() const;
   };
 
   /// Stream operator
