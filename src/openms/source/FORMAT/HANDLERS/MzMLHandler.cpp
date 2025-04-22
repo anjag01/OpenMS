@@ -17,6 +17,8 @@
 #include <OpenMS/FORMAT/VALIDATORS/MzMLValidator.h>
 #include <OpenMS/INTERFACES/IMSDataConsumer.h>
 #include <OpenMS/SYSTEM/File.h>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 
 #include <map>
 
@@ -692,10 +694,8 @@ namespace OpenMS::Internal
       constexpr XMLCh s_external_spectrum_id[] = { 'e','x','t','e','r','n','a','l','S','p','e','c','t','r','u','m','I','D' , 0};
       // constexpr XMLCh s_default_source_file_ref[] = { 'd','e','f','a','u','l','t','S','o','u','r','c','e','F','i','l','e','R','e','f' , 0};
       constexpr XMLCh s_scan_settings_ref[] = { 's','c','a','n','S','e','t','t','i','n','g','s','R','e','f' , 0};
-      
-      
-      open_tags_.push_back(sm_.convert(qname));
-      const String& tag = open_tags_.back();
+      String tag = sm_.convert(qname);
+      open_tags_.push_back(tag);
 
       // do nothing until a spectrum/chromatogram/spectrumList ends
       if (skip_spectrum_ || skip_chromatogram_)
@@ -703,16 +703,16 @@ namespace OpenMS::Internal
         return;
       }
 
-      // determine parent tag
-      const String* parent_tag = &tag; // set to some valid string
+      //determine parent tag
+      String parent_tag;
       if (open_tags_.size() > 1)
       {
-        parent_tag = &(*(open_tags_.end() - 2));
+        parent_tag = *(open_tags_.end() - 2);
       }
-      const String* parent_parent_tag = &tag; // set to some valid string
+      String parent_parent_tag;
       if (open_tags_.size() > 2)
       {
-        parent_parent_tag = &(*(open_tags_.end() - 3));
+        parent_parent_tag = *(open_tags_.end() - 3);
       }
 
       if (tag == "spectrum")
@@ -861,21 +861,21 @@ namespace OpenMS::Internal
       }
       else if (tag == "cvParam")
       {
-        String value;
+        String value = "";
         optionalAttributeAsString_(value, attributes, s_value);
-        String unit_accession;
+        String unit_accession = "";
         optionalAttributeAsString_(unit_accession, attributes, s_unit_accession);
-        handleCVParam_(*parent_parent_tag, *parent_tag, attributeAsString_(attributes, s_accession), attributeAsString_(attributes, s_name), value, unit_accession);
+        handleCVParam_(parent_parent_tag, parent_tag, attributeAsString_(attributes, s_accession), attributeAsString_(attributes, s_name), value, unit_accession);
       }
       else if (tag == "userParam")
       {
-        String type;
+        String type = "";
         optionalAttributeAsString_(type, attributes, s_type);
-        String value;
+        String value = "";
         optionalAttributeAsString_(value, attributes, s_value);
-        String unit_accession;
+        String unit_accession = "";
         optionalAttributeAsString_(unit_accession, attributes, s_unit_accession);
-        handleUserParam_(*parent_parent_tag, *parent_tag, attributeAsString_(attributes, s_name), type, value, unit_accession);
+        handleUserParam_(parent_parent_tag, parent_tag, attributeAsString_(attributes, s_name), type, value, unit_accession);
       }
       else if (tag == "referenceableParamGroup")
       {
@@ -946,7 +946,7 @@ namespace OpenMS::Internal
         String ref = attributeAsString_(attributes, s_ref);
         for (Size i = 0; i < ref_param_[ref].size(); ++i)
         {
-          handleCVParam_(*parent_parent_tag, *parent_tag, ref_param_[ref][i].accession, ref_param_[ref][i].name, ref_param_[ref][i].value, ref_param_[ref][i].unit_accession);
+          handleCVParam_(parent_parent_tag, parent_tag, ref_param_[ref][i].accession, ref_param_[ref][i].name, ref_param_[ref][i].value, ref_param_[ref][i].unit_accession);
         }
       }
       else if (tag == "scan")
@@ -3910,83 +3910,117 @@ namespace OpenMS::Internal
 
     void MzMLHandler::writeTo(std::ostream& os)
     {
-      const MapType& exp = *(cexp_);
-      logger_.startProgress(0, exp.size() + exp.getChromatograms().size(), "storing mzML file");
-      int progress = 0;
-      UInt stored_spectra = 0;
-      UInt stored_chromatograms = 0;
-      Internal::MzMLValidator validator(mapping_, cv_);
-
-      std::vector<std::vector< ConstDataProcessingPtr > > dps;
-      //--------------------------------------------------------------------------------------------
-      //header
-      //--------------------------------------------------------------------------------------------
-      writeHeader_(os, exp, dps, validator);
-
-      //--------------------------------------------------------------------------------------------
-      // spectra
-      //--------------------------------------------------------------------------------------------
-      if (!exp.empty())
-      {
-        // INFO : do not try to be smart and skip empty spectra or
-        // chromatograms. There can be very good reasons for this (e.g. if the
-        // meta information needs to be stored here but the actual data is
-        // stored somewhere else).
-        os << "\t\t<spectrumList count=\"" << exp.size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-
-        // check native ids
-        bool renew_native_ids = false;
-        for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
+      // Check for compression based on filename
+      const bool compress = file_.hasSuffix(".gz");
+      boost::iostreams::filtering_ostream output_stream;
+    
+      try {
+        // Set up compression if needed
+        if (compress) 
         {
-          if (!exp[s_idx].getNativeID().has('='))
+          boost::iostreams::gzip_params params;
+          params.level = boost::iostreams::zlib::best_compression;
+          output_stream.push(boost::iostreams::gzip_compressor(params));
+        }
+        output_stream.push(os);  // Chain to the original stream
+    
+        try 
+        {
+          const MapType& exp = *(cexp_);
+          logger_.startProgress(0, exp.size() + exp.getChromatograms().size(), "storing mzML file");
+          int progress = 0;
+          UInt stored_spectra = 0;
+          UInt stored_chromatograms = 0;
+          Internal::MzMLValidator validator(mapping_, cv_);
+    
+          std::vector<std::vector<ConstDataProcessingPtr>> dps;
+          
+          // Write header
+          writeHeader_(output_stream, exp, dps, validator);
+    
+          // Write spectra
+          if (!exp.empty()) 
           {
-            renew_native_ids = true;
-            break;
+            output_stream << "\t\t<spectrumList count=\"" << exp.size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+            
+            bool renew_native_ids = false;
+            for (Size s_idx = 0; s_idx < exp.size(); ++s_idx) 
+            {
+              if (!exp[s_idx].getNativeID().has('=')) 
+              {
+                renew_native_ids = true;
+                break;
+              }
+            }
+    
+            if (renew_native_ids) 
+            {
+              warning(STORE, "Invalid native IDs detected. Using spectrum identifier nativeID format for all spectra.");
+            }
+    
+            for (Size s_idx = 0; s_idx < exp.size(); ++s_idx) 
+            {
+              logger_.setProgress(progress++);
+              const SpectrumType& spec = exp[s_idx];
+              writeSpectrum_(output_stream, spec, s_idx, validator, renew_native_ids, dps);
+              ++stored_spectra;
+            }
+            output_stream << "\t\t</spectrumList>\n";
+          }
+    
+          // Write chromatograms
+          if (!exp.getChromatograms().empty()) 
+          {
+            output_stream << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size() 
+                         << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+            for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx) 
+            {
+              logger_.setProgress(progress++);
+              const ChromatogramType& chromatogram = exp.getChromatograms()[c_idx];
+              writeChromatogram_(output_stream, chromatogram, c_idx, validator);
+              ++stored_chromatograms;
+            }
+            output_stream << "\t\t</chromatogramList>\n";
+          }
+    
+          // Write footer
+          MzMLHandlerHelper::writeFooter_(output_stream, options_, spectra_offsets_, chromatograms_offsets_);
+          OPENMS_LOG_INFO << stored_spectra << " spectra and " << stored_chromatograms << " chromatograms stored.\n";
+        }
+        catch (const std::exception& e) 
+        {
+          throw Exception::ConversionError(
+            __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+            String("Failed to write mzML data to '") + file_ + "': " + e.what());
+        }
+    
+        //Proper flushing
+        if (compress) 
+        {
+          // Explicitly flush and check for errors
+          if (!output_stream.flush()) 
+          {
+            throw Exception::ConversionError(
+              __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+              "Failed to flush compressed data to '" + file_ + "'");
           }
         }
-
-        // issue warning if something is wrong
-        if (renew_native_ids)
-        {
-          warning(STORE, String("Invalid native IDs detected. Using spectrum identifier nativeID format (spectrum=xsd:nonNegativeInteger) for all spectra."));
-        }
-
-        // write actual data
-        for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
-        {
-          logger_.setProgress(progress++);
-          const SpectrumType& spec = exp[s_idx];
-          writeSpectrum_(os, spec, s_idx, validator, renew_native_ids, dps);
-          ++stored_spectra;
-        }
-        os << "\t\t</spectrumList>\n";
       }
-
-      //--------------------------------------------------------------------------------------------
-      // chromatograms
-      //--------------------------------------------------------------------------------------------
-      if (!exp.getChromatograms().empty())
+      catch (const boost::iostreams::gzip_error& e) 
       {
-        // INFO : do not try to be smart and skip empty spectra or
-        // chromatograms. There can be very good reasons for this (e.g. if the
-        // meta information needs to be stored here but the actual data is
-        // stored somewhere else).
-        os << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-        for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
-        {
-          logger_.setProgress(progress++);
-          const ChromatogramType& chromatogram = exp.getChromatograms()[c_idx];
-          writeChromatogram_(os, chromatogram, c_idx, validator);
-          ++stored_chromatograms;
-        }
-        os << "\t\t</chromatogramList>" << "\n";
+        throw Exception::ConversionError(
+          __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+          String("GZip compression failed for '") + file_ + "' (error " + 
+          String(e.error()) + "): " + e.what());
       }
-
-      MzMLHandlerHelper::writeFooter_(os, options_, spectra_offsets_, chromatograms_offsets_);
-
-      OPENMS_LOG_INFO << stored_spectra << " spectra and " << stored_chromatograms << " chromatograms stored.\n";
-
-      logger_.endProgress(os.tellp());
+      catch (const std::ios_base::failure& e) 
+      {
+        throw Exception::ConversionError(
+          __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+          String("Stream error while writing to '") + file_ + "': " + e.what());
+      }
+    
+      logger_.endProgress(output_stream.tellp());
     }
 
     void MzMLHandler::writeHeader_(std::ostream& os,
@@ -5228,7 +5262,7 @@ namespace OpenMS::Internal
           }
           Base64::encodeIntegers(data64_to_encode, Base64::BYTEORDER_LITTLEENDIAN, encoded_string, options_.getCompression());
 
-          String data_processing_ref_string ;
+          String data_processing_ref_string = "";
           if (!array.getDataProcessing().empty())
           {
             data_processing_ref_string = String("dataProcessingRef=\"dp_sp_") + s + "_bi_" + m + "\"";
@@ -5258,7 +5292,7 @@ namespace OpenMS::Internal
           for (Size p = 0; p < array.size(); ++p)
             data_to_encode[p] = array[p];
           Base64::encodeStrings(data_to_encode, encoded_string, options_.getCompression());
-          String data_processing_ref_string ;
+          String data_processing_ref_string = "";
           if (!array.getDataProcessing().empty())
           {
             data_processing_ref_string = String("dataProcessingRef=\"dp_sp_") + s + "_bi_" + m + "\"";
@@ -5428,7 +5462,7 @@ namespace OpenMS::Internal
         // Try and identify whether we have a CV term for this particular array (otherwise write the array name itself)
         ControlledVocabulary::CVTerm bi_term = getChildWithName_("MS:1000513", array.getName()); // name: binary data array
 
-        String unit_cv_term ;
+        String unit_cv_term = "";
         if (array_metadata.metaValueExists("unit_accession"))
         {
           ControlledVocabulary::CVTerm unit = cv_.getTerm(array_metadata.getMetaValue("unit_accession"));
@@ -5451,7 +5485,7 @@ namespace OpenMS::Internal
         np_config = pf_options_.getNumpressConfigurationFloatDataArray();
       }
 
-      String data_processing_ref_string ;
+      String data_processing_ref_string = "";
       if (!array.getDataProcessing().empty())
       {
         data_processing_ref_string = String("dataProcessingRef=\"dp_sp_") + spec_chrom_idx + "_bi_" + array_idx + "\"";
@@ -5600,7 +5634,7 @@ namespace OpenMS::Internal
           data64_to_encode[p] = array[p];
         }
         Base64::encodeIntegers(data64_to_encode, Base64::BYTEORDER_LITTLEENDIAN, encoded_string, options_.getCompression());
-        String data_processing_ref_string ;
+        String data_processing_ref_string = "";
         if (!array.getDataProcessing().empty())
         {
           data_processing_ref_string = String("dataProcessingRef=\"dp_sp_") + c + "_bi_" + m + "\"";
@@ -5632,7 +5666,7 @@ namespace OpenMS::Internal
           data_to_encode[p] = array[p];
         }
         Base64::encodeStrings(data_to_encode, encoded_string, options_.getCompression());
-        String data_processing_ref_string ;
+        String data_processing_ref_string = "";
         if (!array.getDataProcessing().empty())
         {
           data_processing_ref_string = String("dataProcessingRef=\"dp_sp_") + c + "_bi_" + m + "\"";

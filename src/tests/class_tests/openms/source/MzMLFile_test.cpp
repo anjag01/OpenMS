@@ -8,6 +8,9 @@
 
 #include <OpenMS/CONCEPT/ClassTest.h>
 #include <OpenMS/test_config.h>
+#include <OpenMS/SYSTEM/File.h>
+
+
 
 ///////////////////////////
 #include <OpenMS/FORMAT/MzMLFile.h>
@@ -1194,13 +1197,47 @@ START_SECTION(void transform(const String& filename_in, Interfaces::IMSDataConsu
 }
 END_SECTION
 
+START_SECTION([EXTRA] test Boost gzip compression via MzMLFile::store with .gz extension)
+{
+  // Lade ein MzML-Testfile
+  MSExperiment exp;
+  MzMLFile mzml;
+  mzml.load(OPENMS_GET_TEST_DATA_PATH("ChromatogramExtractor_input.mzML"), exp);
+
+  // Speichere es mit GZIP-Kompression über deine Boost-Integration
+  std::string compressed_file;
+  NEW_TMP_FILE_EXT(compressed_file, ".mzML.gz");
+  mzml.store(compressed_file, exp); // <- deine angepasste store() sollte hier Boost::gzip verwenden
+
+  // Stelle sicher, dass Datei geschrieben wurde
+  TEST_EQUAL(File::exists(compressed_file), true);
+
+  // Lade erneut über OpenMS
+  MSExperiment exp2;
+  mzml.load(compressed_file, exp2);
+
+  // Validierung
+  TEST_EQUAL(exp.getNrSpectra(), exp2.getNrSpectra());
+  TEST_EQUAL(exp.getNrChromatograms(), exp2.getNrChromatograms());
+  for (Size s = 0; s < exp.size(); ++s)
+  {
+    TEST_EQUAL(exp[s].size(), exp2[s].size());
+    for (Size p = 0; p < exp[s].size(); ++p)
+    {
+      TEST_REAL_SIMILAR(exp[s][p].getMZ(), exp2[s][p].getMZ());
+      TEST_REAL_SIMILAR(exp[s][p].getIntensity(), exp2[s][p].getIntensity());
+    }
+  }
+}
+END_SECTION
+
 START_SECTION(void transform(const String& filename_in, Interfaces::IMSDataConsumer * consumer, PeakMap& map, bool skip_full_count = false, bool skip_first_pass = false))
 {
   // Create the consumer, set output file name, transform
   TICConsumer consumer;
   MzMLFile mzml;
   PeakMap map;
-  String in = OPENMS_GET_TEST_DATA_PATH("MzMLFile_1.mzML");
+  String in = OPENMS_GET_TEST_DATA_PATH("/buffer/ag_bsc/pmsb/benden94/openms/src/tests/class_tests/openms/data/ChromatogramExtractor_input.mzML");
 
   PeakFileOptions opt = mzml.getOptions();
   opt.setFillData(true); // whether to actually load any data
