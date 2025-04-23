@@ -16,6 +16,8 @@
 #include <OpenMS/FORMAT/FileTypes.h>
 #include <OpenMS/FORMAT/HANDLERS/MzMLHandler.h>
 #include <OpenMS/KERNEL/MSExperiment.h>
+#include <iostream>
+#include <fstream>
 
 using namespace OpenMS;
 using namespace std;
@@ -1215,6 +1217,68 @@ START_SECTION(void transform(const String& filename_in, Interfaces::IMSDataConsu
   TEST_REAL_SIMILAR(consumer.TIC, 350)
 
   TEST_EQUAL(map.getNrSpectra(), 4)
+}
+END_SECTION
+
+START_SECTION([EXTRA] test direct gzip compression via Boost)
+{
+  // Create test data
+  MSExperiment exp;
+  MzMLFile mzml;
+  mzml.load(OPENMS_GET_TEST_DATA_PATH("MzMLFile_1.mzML"), exp);
+  
+  // Store with your modified gzip compression
+  std::string tmp_filename;
+  NEW_TMP_FILE_EXT(tmp_filename, ".mzML.gz");
+
+  // Debugging: Print out the temporary filename location
+  std::cout << "Temporary file created at: " << tmp_filename << std::endl;
+
+  // Store the data to the tmp file
+  mzml.store(tmp_filename, exp);
+
+  // Check if the file exists using std::ifstream
+  std::ifstream f(tmp_filename);
+  if (f.good())  // Check if the file exists
+  {
+    std::cout << "File exists: " << tmp_filename << std::endl;
+  }
+  else
+  {
+    std::cerr << "File does NOT exist: " << tmp_filename << std::endl;
+  }
+
+  // Validate gzip integrity (check if gzip works)
+  int gzip_check_result = system(("gzip -t " + tmp_filename).c_str());
+  if (gzip_check_result == 0)
+  {
+    std::cout << "Gzip test passed on file: " << tmp_filename << std::endl;
+  }
+  else
+  {
+    std::cerr << "Gzip test failed on file: " << tmp_filename << std::endl;
+  }
+  
+  TEST_EQUAL(gzip_check_result, 0);  // Ensure gzip test passed
+  
+  // Reload and verify data
+  MSExperiment exp2;
+  mzml.load(tmp_filename, exp2);
+  
+  // Basic verification
+  TEST_EQUAL(exp.getNrSpectra(), exp2.getNrSpectra());
+  TEST_EQUAL(exp.getNrChromatograms(), exp2.getNrChromatograms());
+  
+  // More detailed verification (similar to other compression tests)
+  for (Size s = 0; s < exp.size(); ++s)
+  {
+    TEST_EQUAL(exp[s].size(), exp2[s].size());
+    for (Size p = 0; p < exp[s].size(); ++p)
+    {
+      TEST_REAL_SIMILAR(exp[s][p].getMZ(), exp2[s][p].getMZ());
+      TEST_REAL_SIMILAR(exp[s][p].getIntensity(), exp2[s][p].getIntensity());
+    }
+  }
 }
 END_SECTION
 

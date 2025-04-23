@@ -17,6 +17,11 @@
 #include <OpenMS/FORMAT/VALIDATORS/MzMLValidator.h>
 #include <OpenMS/INTERFACES/IMSDataConsumer.h>
 #include <OpenMS/SYSTEM/File.h>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/device/file.hpp>
+#include <ostream>
+#include <iostream>
 
 #include <map>
 
@@ -3908,85 +3913,102 @@ namespace OpenMS::Internal
       os << "\t\t\t\t\t</product>\n";
     }
 
-    void MzMLHandler::writeTo(std::ostream& os)
+    void MzMLHandler::writeTo(std::ostream& os, const String& filename = "")
     {
-      const MapType& exp = *(cexp_);
-      logger_.startProgress(0, exp.size() + exp.getChromatograms().size(), "storing mzML file");
-      int progress = 0;
-      UInt stored_spectra = 0;
-      UInt stored_chromatograms = 0;
-      Internal::MzMLValidator validator(mapping_, cv_);
-
-      std::vector<std::vector< ConstDataProcessingPtr > > dps;
-      //--------------------------------------------------------------------------------------------
-      //header
-      //--------------------------------------------------------------------------------------------
-      writeHeader_(os, exp, dps, validator);
-
-      //--------------------------------------------------------------------------------------------
-      // spectra
-      //--------------------------------------------------------------------------------------------
-      if (!exp.empty())
-      {
-        // INFO : do not try to be smart and skip empty spectra or
-        // chromatograms. There can be very good reasons for this (e.g. if the
-        // meta information needs to be stored here but the actual data is
-        // stored somewhere else).
-        os << "\t\t<spectrumList count=\"" << exp.size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-
-        // check native ids
-        bool renew_native_ids = false;
-        for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
+        namespace io = boost::iostreams;
+    
+        bool do_compress = !filename.empty() && filename.hasSuffix(".gz");
+    
+        // Use filtering_streambuf for filtering
+        io::filtering_streambuf<io::output> compressed_buf;
+    
+        // If we need compression, push gzip_compressor filter
+        if (do_compress)
         {
-          if (!exp[s_idx].getNativeID().has('='))
-          {
-            renew_native_ids = true;
-            break;
-          }
+            compressed_buf.push(io::gzip_compressor());
         }
-
-        // issue warning if something is wrong
-        if (renew_native_ids)
+    
+        // If we need compression, push the original output stream
+        if (do_compress)
         {
-          warning(STORE, String("Invalid native IDs detected. Using spectrum identifier nativeID format (spectrum=xsd:nonNegativeInteger) for all spectra."));
+            compressed_buf.push(os);
         }
-
-        // write actual data
-        for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
+    
+        // Use a pointer to the appropriate output stream
+        std::ostream* target = &os;
+        if (do_compress)
         {
-          logger_.setProgress(progress++);
-          const SpectrumType& spec = exp[s_idx];
-          writeSpectrum_(os, spec, s_idx, validator, renew_native_ids, dps);
-          ++stored_spectra;
+            std::ostream compressed_out(&compressed_buf);  // wrap the filtering streambuf with an ostream
+            target = &compressed_out;
         }
-        os << "\t\t</spectrumList>\n";
-      }
-
-      //--------------------------------------------------------------------------------------------
-      // chromatograms
-      //--------------------------------------------------------------------------------------------
-      if (!exp.getChromatograms().empty())
-      {
-        // INFO : do not try to be smart and skip empty spectra or
-        // chromatograms. There can be very good reasons for this (e.g. if the
-        // meta information needs to be stored here but the actual data is
-        // stored somewhere else).
-        os << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-        for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
+    
+        // Now use *target for writing to output stream (compressed or uncompressed)
+        const MapType& exp = *cexp_;
+        logger_.startProgress(0, exp.size() + exp.getChromatograms().size(), "storing mzML file");
+        int progress = 0;
+        UInt stored_spectra = 0, stored_chromatograms = 0;
+        Internal::MzMLValidator validator(mapping_, cv_);
+        std::vector<std::vector<ConstDataProcessingPtr>> dps;
+    
+        // header
+        writeHeader_(*target, exp, dps, validator);
+    
+        // spectra
+        if (!exp.empty())
         {
-          logger_.setProgress(progress++);
-          const ChromatogramType& chromatogram = exp.getChromatograms()[c_idx];
-          writeChromatogram_(os, chromatogram, c_idx, validator);
-          ++stored_chromatograms;
+            *target << "\t\t<spectrumList count=\"" << exp.size()
+                    << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+            bool renew_native_ids = false;
+            for (Size i = 0; i < exp.size(); ++i)
+            {
+                if (!exp[i].getNativeID().has('='))
+                {
+                    renew_native_ids = true;
+                    break;
+                }
+            }
+            if (renew_native_ids)
+            {
+                warning(STORE,
+                        String("Invalid native IDs detected. Using spectrum identifier "
+                               "nativeID format (spectrum=xsd:nonNegativeInteger) for "
+                               "all spectra."));
+            }
+            for (Size i = 0; i < exp.size(); ++i)
+            {
+                logger_.setProgress(progress++);
+                writeSpectrum_(*target, exp[i], i, validator, renew_native_ids, dps);
+                ++stored_spectra;
+            }
+            *target << "\t\t</spectrumList>\n";
         }
-        os << "\t\t</chromatogramList>" << "\n";
-      }
-
-      MzMLHandlerHelper::writeFooter_(os, options_, spectra_offsets_, chromatograms_offsets_);
-
-      OPENMS_LOG_INFO << stored_spectra << " spectra and " << stored_chromatograms << " chromatograms stored.\n";
-
-      logger_.endProgress(os.tellp());
+    
+        // chromatograms
+        if (!exp.getChromatograms().empty())
+        {
+            *target << "\t\t<chromatogramList count=\""
+                    << exp.getChromatograms().size()
+                    << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+            for (Size i = 0; i < exp.getChromatograms().size(); ++i)
+            {
+                logger_.setProgress(progress++);
+                writeChromatogram_(*target, exp.getChromatograms()[i], i, validator);
+                ++stored_chromatograms;
+            }
+            *target << "\t\t</chromatogramList>\n";
+        }
+    
+        // footer
+        MzMLHandlerHelper::writeFooter_(*target, options_, spectra_offsets_, chromatograms_offsets_);
+    
+        OPENMS_LOG_INFO << stored_spectra << " spectra and " << stored_chromatograms
+                        << " chromatograms stored"
+                        << (do_compress ? " (compressed)." : " (uncompressed).")
+                        << "\n";
+    
+        // flush whichever stream we used
+        target->flush();
+        logger_.endProgress(stored_spectra + stored_chromatograms);
     }
 
     void MzMLHandler::writeHeader_(std::ostream& os,
