@@ -3913,7 +3913,7 @@ namespace OpenMS::Internal
       os << "\t\t\t\t\t</product>\n";
     }
 
-    void MzMLHandler::writeTo(std::ostream& os, const String& filename = "")
+    void MzMLHandler::writeTo(std::ostream& os, const String& filename)
     {
         namespace io = boost::iostreams;
     
