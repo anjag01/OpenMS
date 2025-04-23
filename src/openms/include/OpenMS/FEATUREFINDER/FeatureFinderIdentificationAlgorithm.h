@@ -129,7 +129,8 @@ protected:
   /// region in RT in which a peptide elutes:
   struct RTRegion
   {
-    double start, end;
+    double start = 0.0;
+    double end = 0.0;
     ChargeMap ids; ///< internal/external peptide IDs (per charge) in this region
   };
 
