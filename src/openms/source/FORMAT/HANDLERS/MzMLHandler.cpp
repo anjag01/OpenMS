@@ -3915,49 +3915,38 @@ namespace OpenMS::Internal
     }
 
     void MzMLHandler::writeTo(std::ostream& os, const String& filename)
-{
-    namespace io = boost::iostreams;
-
-    bool do_compress = !filename.empty() && filename.hasSuffix(".gz");
-    
-    try 
     {
-        // Save stream exceptions state
-        std::ios_base::iostate original_exceptions = os.exceptions();
-        
+        namespace io = boost::iostreams;
+    
+        bool do_compress = !filename.empty() && filename.hasSuffix(".gz");
+    
         // filtering_streambuf for compression
         io::filtering_streambuf<io::output> compressed_buf;
         std::unique_ptr<std::ostream> compressed_out;
-        
+    
         if (do_compress)
         {
             // 1) push compressor, then the real output stream
             compressed_buf.push(io::gzip_compressor());
             compressed_buf.push(os);
-            
+    
             // 2) wrap buffer in an ostream that lives until function exit
             compressed_out = std::make_unique<std::ostream>(&compressed_buf);
-            
-            // Set exception handling on the compressed stream
-            compressed_out->exceptions(std::ios_base::failbit | std::ios_base::badbit);
         }
-        
+    
         // target = either raw os or compressed_out
         std::ostream& target = do_compress ? *compressed_out : os;
-        
-        // --- writing logic below ---
+    
+        // --- exactly your original writing logic below ---
         const MapType& exp = *cexp_;
         logger_.startProgress(0, exp.size() + exp.getChromatograms().size(), "storing mzML file");
         int progress = 0;
         UInt stored_spectra = 0, stored_chromatograms = 0;
         Internal::MzMLValidator validator(mapping_, cv_);
         std::vector<std::vector<ConstDataProcessingPtr>> dps;
-        
-        // Write XML declaration and root element first
-        target << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-        
+    
         writeHeader_(target, exp, dps, validator);
-        
+    
         if (!exp.empty())
         {
             target << "\t\t<spectrumList count=\"" << exp.size()
@@ -3972,17 +3961,10 @@ namespace OpenMS::Internal
                 logger_.setProgress(progress++);
                 writeSpectrum_(target, exp[i], i, validator, renew_native_ids, dps);
                 ++stored_spectra;
-                
-                // Check stream state periodically
-                if (!target.good())
-                {
-                    OPENMS_LOG_ERROR << "Stream error occurred while writing spectrum " << i << std::endl;
-                    throw std::ios_base::failure("Stream error during XML writing");
-                }
             }
             target << "\t\t</spectrumList>\n";
         }
-        
+    
         if (!exp.getChromatograms().empty())
         {
             target << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size()
@@ -3992,55 +3974,25 @@ namespace OpenMS::Internal
                 logger_.setProgress(progress++);
                 writeChromatogram_(target, exp.getChromatograms()[i], i, validator);
                 ++stored_chromatograms;
-                
-                // Check stream state periodically
-                if (!target.good())
-                {
-                    OPENMS_LOG_ERROR << "Stream error occurred while writing chromatogram " << i << std::endl;
-                    throw std::ios_base::failure("Stream error during XML writing");
-                }
             }
             target << "\t\t</chromatogramList>\n";
         }
-        
+    
         MzMLHandlerHelper::writeFooter_(target, options_, spectra_offsets_, chromatograms_offsets_);
-        
+    
         OPENMS_LOG_INFO << stored_spectra << " spectra and " << stored_chromatograms
-                      << " chromatograms stored"
-                      << (do_compress ? " (compressed)." : " (uncompressed).") << "\n";
-        
-        // --- CRITICAL: Proper cleanup in correct order ---
-        target.flush();  // flush the target stream first
-        
+                        << " chromatograms stored"
+                        << (do_compress ? " (compressed)." : " (uncompressed).") << "\n";
+    
+        // --- flush everything in the right order ---
+        target.flush();                            // flush ostream
         if (do_compress)
         {
-            // Complete the gzip stream properly - this is critical!
-            // First flush all content through to the compressor
-            compressed_out->flush();
-            
-            // Then close the entire filter chain (finishes gzip footer, etc)
-            io::close(compressed_buf);
-            
-            // Manually reset to free resources
-            compressed_out.reset();
-            
-            // Final flush of the underlying stream
-            os.flush();
+            boost::iostreams::flush(compressed_buf);  // flush gzip filter
+            os.flush();                               // flush underlying file
         }
-        
-        // Restore original exception state
-        os.exceptions(original_exceptions);
-        
         logger_.endProgress(stored_spectra + stored_chromatograms);
     }
-    catch (const std::exception& e)
-    {
-        // Log error and clean up
-        OPENMS_LOG_ERROR << "Exception during mzML writing: " << e.what() << std::endl;
-        logger_.endProgress();
-        throw; // Rethrow for caller to handle
-    }
-}
 
     void MzMLHandler::writeHeader_(std::ostream& os,
                                    const MapType& exp,
