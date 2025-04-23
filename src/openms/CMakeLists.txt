@@ -7,7 +7,7 @@
 # --------------------------------------------------------------------------
 
 project("OpenMS")
-add_compile_options(-Wno-error=maybe-uninitialized)
+
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -107,6 +107,10 @@ openms_add_library(TARGET_NAME  OpenMS
                                   ${OPENMS_DEP_LIBRARIES}
                    PRIVATE_LINK_LIBRARIES ${OPENMS_DEP_PRIVATE_LIBRARIES}
                    DLL_EXPORT_PATH "OpenMS/")
+                   
+                   target_compile_options(OpenMS PRIVATE -Wno-error=maybe-uninitialized)
+                          
+               
 
 if (MSVC)
   ## treat warning of unused function parameter as error, similar to -Werror=unused-variable on GCC
