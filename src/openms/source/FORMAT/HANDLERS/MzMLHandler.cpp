@@ -22,6 +22,7 @@
 #include <boost/iostreams/device/file.hpp>
 #include <ostream>
 #include <iostream>
+#include <boost/iostreams/flush.hpp> 
 
 #include <map>
 
@@ -3919,23 +3920,24 @@ namespace OpenMS::Internal
     
         bool do_compress = !filename.empty() && filename.hasSuffix(".gz");
     
-        // Use filtering_streambuf for filtering
+        // filtering_streambuf for compression
         io::filtering_streambuf<io::output> compressed_buf;
-        std::unique_ptr<std::ostream> target_stream;
+        std::unique_ptr<std::ostream> compressed_out;
     
         if (do_compress)
         {
-            // Push filters in correct order: compressor, then underlying stream
+            // 1) push compressor, then the real output stream
             compressed_buf.push(io::gzip_compressor());
             compressed_buf.push(os);
     
-            // Wrap in an ostream and keep it alive
-            target_stream = std::make_unique<std::ostream>(&compressed_buf);
+            // 2) wrap buffer in an ostream that lives until function exit
+            compressed_out = std::make_unique<std::ostream>(&compressed_buf);
         }
     
-        // Use the right output stream reference
-        std::ostream& target = do_compress ? *target_stream : os;
+        // target = either raw os or compressed_out
+        std::ostream& target = do_compress ? *compressed_out : os;
     
+        // --- exactly your original writing logic below ---
         const MapType& exp = *cexp_;
         logger_.startProgress(0, exp.size() + exp.getChromatograms().size(), "storing mzML file");
         int progress = 0;
@@ -3943,30 +3945,17 @@ namespace OpenMS::Internal
         Internal::MzMLValidator validator(mapping_, cv_);
         std::vector<std::vector<ConstDataProcessingPtr>> dps;
     
-        // Header
         writeHeader_(target, exp, dps, validator);
     
-        // Spectra
         if (!exp.empty())
         {
             target << "\t\t<spectrumList count=\"" << exp.size()
                    << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-    
             bool renew_native_ids = false;
             for (Size i = 0; i < exp.size(); ++i)
-            {
-                if (!exp[i].getNativeID().has('='))
-                {
-                    renew_native_ids = true;
-                    break;
-                }
-            }
+                if (!exp[i].getNativeID().has('=')) { renew_native_ids = true; break; }
             if (renew_native_ids)
-            {
-                warning(STORE, String("Invalid native IDs detected. Using spectrum identifier "
-                                      "nativeID format (spectrum=xsd:nonNegativeInteger) for all spectra."));
-            }
-    
+                warning(STORE, String("Invalid native IDs detected. Using spectrum identifier nativeID format (spectrum=xsd:nonNegativeInteger) for all spectra."));
             for (Size i = 0; i < exp.size(); ++i)
             {
                 logger_.setProgress(progress++);
@@ -3976,7 +3965,6 @@ namespace OpenMS::Internal
             target << "\t\t</spectrumList>\n";
         }
     
-        // Chromatograms
         if (!exp.getChromatograms().empty())
         {
             target << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size()
@@ -3990,18 +3978,19 @@ namespace OpenMS::Internal
             target << "\t\t</chromatogramList>\n";
         }
     
-        // Footer
         MzMLHandlerHelper::writeFooter_(target, options_, spectra_offsets_, chromatograms_offsets_);
-    
-        // Optional debug comment to check write worked
-        target << "\n<!-- DEBUG: Write complete -->\n";
     
         OPENMS_LOG_INFO << stored_spectra << " spectra and " << stored_chromatograms
                         << " chromatograms stored"
                         << (do_compress ? " (compressed)." : " (uncompressed).") << "\n";
     
-        // flush stream
-        target.flush();
+        // --- flush everything in the right order ---
+        target.flush();                            // flush ostream
+        if (do_compress)
+        {
+            boost::iostreams::flush(compressed_buf);  // flush gzip filter
+            os.flush();                               // flush underlying file
+        }
         logger_.endProgress(stored_spectra + stored_chromatograms);
     }
     
