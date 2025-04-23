@@ -190,12 +190,15 @@ namespace OpenMS
     const TransformationDescription& trafo,
     bool store_original_rt)
   {
-    // Phase 1: collect pointers to all observations
+
+    // first count
+size_t count = 0;
+id_data.applyToObservations([&](auto&){ ++count; });
     std::vector<IdentificationData::Observation*> ptrs;
-    ptrs.reserve(id_data.getNrObservations());
-    id_data.applyToObservations([&](IdentificationData::Observation& obs) {
-      ptrs.push_back(&obs);
-    });
+ptrs.reserve(count);
+id_data.applyToObservations([&](IdentificationData::Observation& obs) {
+  ptrs.push_back(&obs);
+});
   
     // Phase 2: update retention times safely, outside of the container iteration
     for (auto* obs : ptrs)
