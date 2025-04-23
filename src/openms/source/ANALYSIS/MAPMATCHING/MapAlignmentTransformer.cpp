@@ -186,18 +186,24 @@ namespace OpenMS
 
 
   void MapAlignmentTransformer::transformRetentionTimes(
-    IdentificationData& id_data, const TransformationDescription& trafo,
+    IdentificationData& id_data,
+    const TransformationDescription& trafo,
     bool store_original_rt)
   {
-    // update RTs in-place:
-    id_data.applyToObservations([&](IdentificationData::Observation& obs)
+    // Phase 1: collect pointers to all observations
+    std::vector<IdentificationData::Observation*> ptrs;
+    ptrs.reserve(id_data.getNrObservations());
+    id_data.applyToObservations([&](IdentificationData::Observation& obs) {
+      ptrs.push_back(&obs);
+    });
+  
+    // Phase 2: update retention times safely, outside of the container iteration
+    for (auto* obs : ptrs)
+    {
+      if (store_original_rt)
       {
-        if (store_original_rt)
-        {
-          storeOriginalRT_(obs, obs.rt);
-        }
-        obs.rt = trafo.apply(obs.rt);
-      });
+        storeOriginalRT_(*obs, obs->rt);
+      }
+      obs->rt = trafo.apply(obs->rt);
+    }
   }
-
-}
