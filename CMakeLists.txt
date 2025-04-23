@@ -41,7 +41,12 @@ if(NOT multiConfig AND NOT DEFINED CMAKE_BUILD_TYPE)
 endif()
 
 project("OpenMS_host" LANGUAGES CXX)
-add_compile_options(-Wno-error=maybe-uninitialized)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+message(STATUS "GCC compiler detected")
+  add_compile_options(-Wno-error=maybe-uninitialized)
+endif()
+
 
 # required for cmake < 3.13 if ccache is used
 set(CMAKE_AUTOMOC_COMPILER_PREDEFINES OFF)
