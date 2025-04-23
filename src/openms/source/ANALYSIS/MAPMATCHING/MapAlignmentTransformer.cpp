@@ -210,3 +210,4 @@ id_data.applyToObservations([&](IdentificationData::Observation& obs) {
       obs->rt = trafo.apply(obs->rt);
     }
   }
+}
