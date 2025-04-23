@@ -3919,7 +3919,7 @@ namespace OpenMS::Internal
   // Determine if gzip compression is requested (.gz or .mzML.gz suffix)
   bool do_compress = !filename.empty() && (filename.hasSuffix(".gz") || filename.hasSuffix(".mzML.gz"));
 
-  // Writer lambda: writes full uncompressed mzML (with correct indexing) to any std::ostream
+  // Writer lambda: writes full uncompressed mzML to any std::ostream
   auto write_uncompressed = [&](std::ostream& out)
   {
     const MapType& exp = *cexp_;
@@ -3990,7 +3990,7 @@ namespace OpenMS::Internal
   write_uncompressed(mem_out);
   const std::string uncompressed_data = mem_out.str();
 
-  // Pass 2: compress entire blob into `compressed_data`
+  // Pass 2: compress into `compressed_data`
   std::string compressed_data;
   {
     namespace io = boost::iostreams;
