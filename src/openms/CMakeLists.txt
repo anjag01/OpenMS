@@ -7,6 +7,7 @@
 # --------------------------------------------------------------------------
 
 project("OpenMS")
+add_compile_options(-Wno-error=maybe-uninitialized)
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -142,3 +143,6 @@ file(COPY ${OPENMS_HOST_DIRECTORY}/cmake/Modules DESTINATION ${OPENMS_HOST_BINAR
 #------------------------------------------------------------------------------
 # register relevant paths for the doxygen doc generation
 openms_doc_path("${PROJECT_SOURCE_DIR}/include")
+
+
+
