@@ -18,6 +18,10 @@
 #include <OpenMS/KERNEL/MSExperiment.h>
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/device/back_inserter.hpp>
 
 using namespace OpenMS;
 using namespace std;
@@ -1222,64 +1226,49 @@ END_SECTION
 
 START_SECTION([EXTRA] test direct gzip compression via Boost)
 {
-  // Create test data
+  // 1) Load a known mzML file into an MSExperiment
   MSExperiment exp;
   MzMLFile mzml;
   mzml.load(OPENMS_GET_TEST_DATA_PATH("MzMLFile_1.mzML"), exp);
-  
-  // Store with gzip compression
+
+  // 2) Store with gzip compression
   std::string tmp_filename;
   NEW_TMP_FILE_EXT(tmp_filename, ".mzML.gz");
-  std::cout << "Temporary file created at: " << tmp_filename << std::endl;
-
   mzml.store(tmp_filename, exp);
 
-  // Check if file exists
-  std::ifstream check_file(tmp_filename, std::ios::binary | std::ios::ate);
-  if (!check_file)
+  // 3) Verify the output file exists and is non-empty
+  std::ifstream infile(tmp_filename, std::ios::binary | std::ios::ate);
+  TEST_TRUE(infile.good());
+  std::streamsize filesize = infile.tellg();
+  TEST_NOT_EQUAL(filesize, 0);
+
+  // 4) Check gzip magic header bytes (0x1F, 0x8B)
+  infile.seekg(0, std::ios::beg);
+  unsigned char hdr[2] = {0, 0};
+  infile.read(reinterpret_cast<char*>(hdr), 2);
+  TEST_EQUAL(hdr[0], 0x1F);
+  TEST_EQUAL(hdr[1], 0x8B);
+
+  // 5) Decompress in-memory via Boost.Iostreams and assert non-empty content
   {
-    std::cerr << "ERROR: File does NOT exist: " << tmp_filename << std::endl;
-  }
-  else
-  {
-    std::streamsize size = check_file.tellg();
-    std::cout << "DEBUG: File size: " << size << " bytes\n";
-    if (size == 0)
-    {
-      std::cerr << "ERROR: File is empty after writing!\n";
-    }
-    else
-    {
-      check_file.seekg(0, std::ios::beg);
-      std::cout << "DEBUG: Dump of first few bytes:\n";
-      char buffer[128] = {0};
-      check_file.read(buffer, sizeof(buffer));
-      for (int i = 0; i < check_file.gcount(); ++i)
-      {
-        printf("%02X ", static_cast<unsigned char>(buffer[i]));
-      }
-      std::cout << "\n";
-    }
+    namespace io = boost::iostreams;
+    io::filtering_streambuf<io::input> inbuf;
+    infile.clear();
+    infile.seekg(0, std::ios::beg);
+    inbuf.push(io::gzip_decompressor());
+    inbuf.push(infile);
+    // Wrap the filtering_streambuf in an istream
+    std::istream decompress_stream(&inbuf);
+    std::ostringstream decompressed;
+    decompressed << decompress_stream.rdbuf();
+    TEST_NOT_EQUAL(decompressed.str().size(), 0);
   }
 
-  // Validate gzip integrity
-  int gzip_check_result = system(("gzip -t " + tmp_filename).c_str());
-  if (gzip_check_result == 0)
-  {
-    std::cout << "Gzip test passed on file: " << tmp_filename << std::endl;
-  }
-  else
-  {
-    std::cerr << "Gzip test failed on file: " << tmp_filename << std::endl;
-  }
-  TEST_EQUAL(gzip_check_result, 0);
-
-  // Reload and verify data
+  // 6) Reload the gzipped mzML and compare spectra counts and peak data
   MSExperiment exp2;
   mzml.load(tmp_filename, exp2);
   TEST_EQUAL(exp.getNrSpectra(), exp2.getNrSpectra());
   TEST_EQUAL(exp.getNrChromatograms(), exp2.getNrChromatograms());
-
   for (Size s = 0; s < exp.size(); ++s)
   {
     TEST_EQUAL(exp[s].size(), exp2[s].size());
@@ -1291,6 +1280,7 @@ START_SECTION([EXTRA] test direct gzip compression via Boost)
   }
 }
 END_SECTION
+
 
 
 /////////////////////////////////////////////////////////////
