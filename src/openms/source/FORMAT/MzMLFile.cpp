@@ -18,7 +18,7 @@
 #include <OpenMS/FORMAT/DATAACCESS/MSDataTransformingConsumer.h>
 #include <OpenMS/FORMAT/HANDLERS/IndexedMzMLDecoder.h>
 #include <OpenMS/SYSTEM/File.h>
-
+#include <fstream>
 #include <sstream>
 
 namespace OpenMS
