@@ -550,3 +550,6 @@ endif()
 message(STATUS "")
 message(STATUS "-----------------------------------------------------------------")
 message(STATUS "")
+
+add_compile_options(-Wno-error=maybe-uninitialized)
+
