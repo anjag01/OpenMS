@@ -152,10 +152,22 @@ namespace OpenMS
 
   void MzMLFile::store(const String& filename, const PeakMap& map) const
   {
-    Internal::MzMLHandler handler(map, filename, getVersion(), *this);
-    handler.setOptions(options_);
-    save_(filename, &handler);
+      Internal::MzMLHandler handler(map, filename, getVersion(), *this);
+      handler.setOptions(options_);
+  
+      // Open the output file directly (binary mode)
+      std::ofstream ofs(filename.c_str(), std::ios::binary);
+      if (!ofs)
+      {
+          throw Exception::UnableToCreateFile(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, filename);
+      }
+  
+      // Call the new two-argument writeTo so data (and compression) actually gets written
+      handler.writeTo(ofs, filename);
+  
+      ofs.close();
   }
+  
 
   void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
   {
