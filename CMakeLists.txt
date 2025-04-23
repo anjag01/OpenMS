@@ -41,6 +41,7 @@ if(NOT multiConfig AND NOT DEFINED CMAKE_BUILD_TYPE)
 endif()
 
 project("OpenMS_host" LANGUAGES CXX)
+add_compile_options(-Wno-error=maybe-uninitialized)
 
 # required for cmake < 3.13 if ccache is used
 set(CMAKE_AUTOMOC_COMPILER_PREDEFINES OFF)
@@ -551,5 +552,5 @@ message(STATUS "")
 message(STATUS "-----------------------------------------------------------------")
 message(STATUS "")
 
-add_compile_options(-Wno-error=maybe-uninitialized)
+
 

@@ -54,6 +54,8 @@ endforeach(i)
 if(WITH_GUI)
   foreach(i ${TOPP_executables_with_GUIlib})
     add_executable(${i} ${i}.cpp)
+    target_compile_options(MetaProSIP PRIVATE -Wno-error=maybe-uninitialized)
+
     # we also want to install each topp tool
     openms_add_executable_compiler_flags(${i})
     install_tool(${i})
