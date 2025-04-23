@@ -1227,28 +1227,42 @@ START_SECTION([EXTRA] test direct gzip compression via Boost)
   MzMLFile mzml;
   mzml.load(OPENMS_GET_TEST_DATA_PATH("MzMLFile_1.mzML"), exp);
   
-  // Store with your modified gzip compression
+  // Store with gzip compression
   std::string tmp_filename;
   NEW_TMP_FILE_EXT(tmp_filename, ".mzML.gz");
-
-  // Debugging: Print out the temporary filename location
   std::cout << "Temporary file created at: " << tmp_filename << std::endl;
 
-  // Store the data to the tmp file
   mzml.store(tmp_filename, exp);
 
-  // Check if the file exists using std::ifstream
-  std::ifstream f(tmp_filename);
-  if (f.good())  // Check if the file exists
+  // Check if file exists
+  std::ifstream check_file(tmp_filename, std::ios::binary | std::ios::ate);
+  if (!check_file)
   {
-    std::cout << "File exists: " << tmp_filename << std::endl;
+    std::cerr << "ERROR: File does NOT exist: " << tmp_filename << std::endl;
   }
   else
   {
-    std::cerr << "File does NOT exist: " << tmp_filename << std::endl;
+    std::streamsize size = check_file.tellg();
+    std::cout << "DEBUG: File size: " << size << " bytes\n";
+    if (size == 0)
+    {
+      std::cerr << "ERROR: File is empty after writing!\n";
+    }
+    else
+    {
+      check_file.seekg(0, std::ios::beg);
+      std::cout << "DEBUG: Dump of first few bytes:\n";
+      char buffer[128] = {0};
+      check_file.read(buffer, sizeof(buffer));
+      for (int i = 0; i < check_file.gcount(); ++i)
+      {
+        printf("%02X ", static_cast<unsigned char>(buffer[i]));
+      }
+      std::cout << "\n";
+    }
   }
 
-  // Validate gzip integrity (check if gzip works)
+  // Validate gzip integrity
   int gzip_check_result = system(("gzip -t " + tmp_filename).c_str());
   if (gzip_check_result == 0)
   {
@@ -1258,18 +1272,14 @@ START_SECTION([EXTRA] test direct gzip compression via Boost)
   {
     std::cerr << "Gzip test failed on file: " << tmp_filename << std::endl;
   }
-  
-  TEST_EQUAL(gzip_check_result, 0);  // Ensure gzip test passed
-  
+  TEST_EQUAL(gzip_check_result, 0);
+
   // Reload and verify data
   MSExperiment exp2;
   mzml.load(tmp_filename, exp2);
-  
-  // Basic verification
   TEST_EQUAL(exp.getNrSpectra(), exp2.getNrSpectra());
   TEST_EQUAL(exp.getNrChromatograms(), exp2.getNrChromatograms());
-  
-  // More detailed verification (similar to other compression tests)
+
   for (Size s = 0; s < exp.size(); ++s)
   {
     TEST_EQUAL(exp[s].size(), exp2[s].size());
@@ -1281,6 +1291,7 @@ START_SECTION([EXTRA] test direct gzip compression via Boost)
   }
 }
 END_SECTION
+
 
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
