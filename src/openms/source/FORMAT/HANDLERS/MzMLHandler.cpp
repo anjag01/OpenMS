@@ -3987,10 +3987,12 @@ namespace OpenMS::Internal
         // --- flush everything in the right order ---
         target.flush();                            // flush ostream
         if (do_compress)
-        {
-            boost::iostreams::flush(compressed_buf);  // flush gzip filter
-            os.flush();                               // flush underlying file
-        }
+{
+    compressed_out->flush();         // flush ostream view
+    compressed_buf.reset();          // this flushes and finalizes gzip
+    os.flush();                      // flush outer stream
+}
+
         logger_.endProgress(stored_spectra + stored_chromatograms);
     }
 
