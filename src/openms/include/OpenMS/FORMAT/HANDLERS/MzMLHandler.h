@@ -124,7 +124,7 @@ public:
       void characters(const XMLCh* const chars, const XMLSize_t length) override;
 
       /// Docu in base class XMLHandler::writeTo
-      void writeTo(std::ostream& os, const String& filename = "");
+      void writeTo(std::ostream& os);
 
 
       //@}
@@ -381,6 +381,10 @@ protected:
 
       /// map pointer for writing
       const MapType* cexp_{ nullptr };
+
+      /// The filename we’re writing to
+        String _filename;
+
 
       /// Options that can be set for loading/storing
       PeakFileOptions options_;
