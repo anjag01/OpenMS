@@ -3917,7 +3917,7 @@ namespace OpenMS::Internal
     void MzMLHandler::writeTo(std::ostream& os, const String& filename)
 {
   // Determine if gzip compression is requested (.gz or .mzML.gz suffix)
-  bool do_compress = !filename.empty() && (filename.hasSuffix(".gz") || filename.hasSuffix(".mzML.gz"));
+  bool do_compress = !filename.empty() && (filename.hasSuffix("tolower.gz") || filename.hasSuffix(".mzML.gz"));
 
   // Writer lambda: writes full uncompressed mzML to any std::ostream
   auto write_uncompressed = [&](std::ostream& out)
