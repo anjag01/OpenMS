@@ -3988,7 +3988,7 @@ namespace OpenMS::Internal
       if (do_compress)
       {
         // Wrap the provided ostream into a gzip compressor with specified level
-        // note: output, not input
+        
         boost::iostreams::filtering_stream<boost::iostreams::output> comp_out;
    
         comp_out.push(boost::iostreams::gzip_compressor(gz_params));
