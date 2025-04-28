@@ -17,7 +17,7 @@
 #include <OpenMS/FORMAT/VALIDATORS/MzMLValidator.h>
 #include <OpenMS/INTERFACES/IMSDataConsumer.h>
 #include <OpenMS/SYSTEM/File.h>
-#include <boost/iostreams/filtering_stream.hpp>   
+#include <boost/iostreams/filtering_streambuf.hpp>   
 #include <boost/iostreams/filter/gzip.hpp> 
 #include <boost/iostreams/stream_buffer.hpp>        
 #include <ostream> 
@@ -3988,21 +3988,24 @@ namespace OpenMS::Internal
       };
     
       if (do_compress)
-  {
-    namespace io = boost::iostreams;
-    io::filtering_stream<io::output> comp_out;
-    comp_out.push(io::gzip_compressor(gz_params));
-    // wrap the streambuf
-    comp_out.push(os.rdbuf());
-
-    write_all(comp_out);
-    comp_out.flush();  // writes gzip footer
-  }
-  else
-  {
-    write_all(os);
-  }
-}
+      {
+        namespace io = boost::iostreams;
+        // 1) Create a filtering_streambuf (not a filtering_stream)
+        io::filtering_streambuf<io::output> outbuf;
+        outbuf.push(io::gzip_compressor(gz_params));
+        // 2) Push the real filebuf (underlying os) into it:
+        outbuf.push(os.rdbuf());
+        // 3) Wrap that buffered chain in a throwaway ostream:
+        std::ostream gzip_out(&outbuf);
+    
+        write_all(gzip_out);
+        gzip_out.flush();          // flush through the compressor
+      }
+      else
+      {
+        write_all(os);
+      }
+    }
 
    
 
