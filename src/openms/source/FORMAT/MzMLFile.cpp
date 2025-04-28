@@ -170,21 +170,15 @@ namespace OpenMS
 
   
 
-  void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
-  {
-    Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
-    handler.setOptions(options_);
-    {
-      std::stringstream os;
+void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
+{
+  Internal::MzMLHandler handler(map, "dummy.mzML.gz", getVersion(), *this);
+  handler.setOptions(options_);
+  std::ostringstream oss(std::ios::binary);
+  handler.writeTo(oss);              // now do_compress == true
+  output = oss.str();
+}
 
-      //set high precision for writing of floating point numbers
-      os.precision(writtenDigits(double()));
-
-      // write data and close stream
-      handler.writeTo(os);
-      output = os.str();
-    }
-  }
 
   void MzMLFile::transform(const String& filename_in, Interfaces::IMSDataConsumer* consumer, bool skip_full_count, bool skip_first_pass)
   {
