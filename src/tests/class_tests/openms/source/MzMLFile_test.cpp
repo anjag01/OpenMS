@@ -1197,7 +1197,7 @@ START_SECTION(void transform(const String& filename_in, Interfaces::IMSDataConsu
 }
 END_SECTION
 
-START_SECTION([EXTRA] test Boost gzip compression via MzMLFile::store with .gz extension)
+START_SECTION([EXTRA])
 {
   // Lade ein MzML-Testfile
   MSExperiment exp;
@@ -1206,7 +1206,7 @@ START_SECTION([EXTRA] test Boost gzip compression via MzMLFile::store with .gz e
 
   // Speichere es mit GZIP-Kompression über deine Boost-Integration
   std::string compressed_file;
-  NEW_TMP_FILE_EXT(compressed_file, ".mzML.gz");
+  NEW_TMP_FILE_EXT(compressed_file, ".gz");
   mzml.store(compressed_file, exp); // <- deine angepasste store() sollte hier Boost::gzip verwenden
 
   // Stelle sicher, dass Datei geschrieben wurde
