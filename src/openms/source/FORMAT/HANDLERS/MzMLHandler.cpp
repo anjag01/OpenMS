@@ -3913,7 +3913,7 @@ namespace OpenMS::Internal
     }
 
 
-    void MzMLHandler::writeTo(std::ostream& os)
+    void MzMLHandler::writeTo(std::ostream& os) 
     {
       // Case-insensitive check: convert member filename to lowercase
       String filename_lower = _filename;
