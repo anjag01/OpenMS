@@ -1,32 +1,27 @@
 # src/openms/source/FORMAT/DATAACCESS/sources.cmake
 #---------------------------------------------
-# Collect all source files in the DATAACCESS folder
+# DATAACCESS backend source files for libOpenMS
 #---------------------------------------------
 
-# Directory of this .cmeake file (holds the .cpp files)
-set(DATAACCESS_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-
-# List of all .cpp files in DATAACCESS
+# List of source files relative to src/openms directory
 set(DATAACCESS_SOURCES
-  MSDataWritingConsumer.cpp
-  MSDataTransformingConsumer.cpp
-  MSDataAggregatingConsumer.cpp
-  MSDataCachedConsumer.cpp
-  MSDataChainingConsumer.cpp
-  MSDataStoringConsumer.cpp
-  MSDataSqlConsumer.cpp
-  NoopMSDataConsumer.cpp
-  SiriusFragmentAnnotation.cpp
-  SwathFileConsumer.cpp
+  "source/FORMAT/DATAACCESS/MSDataWritingConsumer.cpp"
+  "source/FORMAT/DATAACCESS/MSDataTransformingConsumer.cpp"
+  "source/FORMAT/DATAACCESS/MSDataAggregatingConsumer.cpp"
+  "source/FORMAT/DATAACCESS/MSDataCachedConsumer.cpp"
+  "source/FORMAT/DATAACCESS/MSDataChainingConsumer.cpp"
+  "source/FORMAT/DATAACCESS/MSDataStoringConsumer.cpp"
+  "source/FORMAT/DATAACCESS/MSDataSqlConsumer.cpp"
+  "source/FORMAT/DATAACCESS/NoopMSDataConsumer.cpp"
+  "source/FORMAT/DATAACCESS/SiriusFragmentAnnotation.cpp"
+  "source/FORMAT/DATAACCESS/SwathFileConsumer.cpp"
 )
 
-# Prepend full path to each filename
-list(TRANSFORM DATAACCESS_SOURCES PREPEND "${DATAACCESS_DIR}/")
-
-# Append these files into the global OpenMS_sources list
+# Append these files into the global OpenMS_sources list for compilation
 list(APPEND OpenMS_sources ${DATAACCESS_SOURCES})
 
 # Organize for IDEs: group these under Source Files\FORMAT\DATAACCESS
 source_group("Source Files\\FORMAT\\DATAACCESS" FILES ${DATAACCESS_SOURCES})
+
 
 
