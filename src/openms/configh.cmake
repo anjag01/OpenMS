@@ -62,9 +62,7 @@ CHECK_FUNCTION_EXISTS("kill" OPENMS_HAS_KILL)
 CHECK_FUNCTION_EXISTS("sysconf" OPENMS_HAS_SYSCONF)
 
 if (MY_CXX_FLAGS)
-  set(CF_MYCXXFLAGS ${MY_CXX_FLAGS})
-else()
-  set(CF_MYCXXFLAGS "<none>")
+set(CF_MYCXXFLAGS -Og;-ggdb;-g3;-fno-omit-frame-pointer)
 endif()
 
 

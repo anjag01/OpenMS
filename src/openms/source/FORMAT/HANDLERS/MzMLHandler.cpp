@@ -18,7 +18,8 @@
 #include <OpenMS/INTERFACES/IMSDataConsumer.h>
 #include <OpenMS/SYSTEM/File.h>
 #include <boost/iostreams/filtering_stream.hpp>   
-#include <boost/iostreams/filter/gzip.hpp>         
+#include <boost/iostreams/filter/gzip.hpp> 
+#include <boost/iostreams/stream_buffer.hpp>        
 #include <ostream>                                 
 
 
@@ -3921,7 +3922,7 @@ namespace OpenMS::Internal
     
       // Determine if gzip compression is requested (.gz or .mzML.gz suffix)
       bool do_compress = !filename_lower.empty() 
-          && (filename_lower.hasSuffix(".mzml.gz") || filename_lower.hasSuffix(".gz"));
+          && (filename_lower.hasSuffix(".gz"));
     
       // Optional: choose compression level (1 = fastest, 9 = best compression)
       boost::iostreams::gzip_params gz_params;
@@ -3986,22 +3987,21 @@ namespace OpenMS::Internal
       };
     
       if (do_compress)
-      {
-        // Wrap the provided ostream into a gzip compressor with specified level
-        
-        boost::iostreams::filtering_stream<boost::iostreams::output> comp_out;
-   
-        comp_out.push(boost::iostreams::gzip_compressor(gz_params));
-        comp_out.push(os);
-    
-        write_all(comp_out);
-        comp_out.flush();
-      }
-      else
-      {
-        write_all(os);
-      }
-    }
+  {
+    namespace io = boost::iostreams;
+    io::filtering_stream<io::output> comp_out;
+    comp_out.push(io::gzip_compressor(gz_params));
+    // **Wrap the std::ostream via stream_buffer**
+    comp_out.push(io::stream_buffer<std::ostream&>(os));
+
+    write_all(comp_out);
+    comp_out.flush();  // writes gzip footer
+  }
+  else
+  {
+    write_all(os);
+  }
+}
 
    
 

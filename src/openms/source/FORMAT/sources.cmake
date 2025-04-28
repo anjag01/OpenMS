@@ -47,7 +47,6 @@ MSstatsFile.cpp
 MascotGenericFile.cpp
 MascotRemoteQuery.cpp
 MascotXMLFile.cpp
-MSDataWritingConsumer.cpp
 MsInspectFile.cpp
 MzDataFile.cpp
 MzIdentMLFile.cpp

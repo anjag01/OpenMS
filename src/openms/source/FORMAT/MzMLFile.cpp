@@ -172,7 +172,7 @@ namespace OpenMS
 
 void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
 {
-  Internal::MzMLHandler handler(map, "dummy.mzML.gz", getVersion(), *this);
+  Internal::MzMLHandler handler(map, "dummy.gz", getVersion(), *this);
   handler.setOptions(options_);
   std::ostringstream oss(std::ios::binary);
   handler.writeTo(oss);              // now do_compress == true
