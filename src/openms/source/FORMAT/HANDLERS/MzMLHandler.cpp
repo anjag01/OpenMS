@@ -3987,25 +3987,30 @@ namespace OpenMS::Internal
         logger_.endProgress(stored_spectra + stored_chromatograms);
       };
     
-      if (do_compress)
-      {
-        namespace io = boost::iostreams;
-        // 1) Create a filtering_streambuf (not a filtering_stream)
-        io::filtering_streambuf<io::output> outbuf;
-        outbuf.push(io::gzip_compressor(gz_params));
-        // 2) Push the real filebuf (underlying os) into it:
-        outbuf.push(os.rdbuf());
-        // 3) Wrap that buffered chain in a throwaway ostream:
-        std::ostream gzip_out(&outbuf);
     
-        write_all(gzip_out);
-        gzip_out.flush();          // flush through the compressor
+         if (do_compress)
+        {
+          namespace io = boost::iostreams;
+      
+          // 1) Create a filtering_streambuf chain
+          io::filtering_streambuf<io::output> outbuf;
+          outbuf.push(io::gzip_compressor(gz_params));
+      
+          // 2) Wrap the std::streambuf* in a Boost Device
+          io::stream_buffer<std::streambuf*> dev(os.rdbuf());
+          outbuf.push(dev);
+      
+          // 3) Tie it all to a temporary ostream
+          std::ostream gzip_os(&outbuf);
+      
+          write_all(gzip_os);
+          gzip_os.flush();  // flush through the compressor
+        }
+        else
+        {
+          write_all(os);
+        }
       }
-      else
-      {
-        write_all(os);
-      }
-    }
 
    
 
