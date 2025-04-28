@@ -20,7 +20,8 @@
 #include <boost/iostreams/filtering_stream.hpp>   
 #include <boost/iostreams/filter/gzip.hpp> 
 #include <boost/iostreams/stream_buffer.hpp>        
-#include <ostream>                                 
+#include <ostream> 
+#include <streambuf>                                 
 
 
 #include <map>
@@ -3991,8 +3992,8 @@ namespace OpenMS::Internal
     namespace io = boost::iostreams;
     io::filtering_stream<io::output> comp_out;
     comp_out.push(io::gzip_compressor(gz_params));
-    // **Wrap the std::ostream via stream_buffer**
-    comp_out.push(io::stream_buffer<std::ostream&>(os));
+    // wrap the streambuf
+    comp_out.push(os.rdbuf());
 
     write_all(comp_out);
     comp_out.flush();  // writes gzip footer
