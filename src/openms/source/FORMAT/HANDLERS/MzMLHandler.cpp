@@ -21,6 +21,8 @@
 #include <boost/iostreams/filter/gzip.hpp> 
 #include <boost/iostreams/stream_buffer.hpp>        
 #include <ostream> 
+#include <fstream>
+#include <zlib.h>
 #include <streambuf>                                 
 
 
@@ -3986,31 +3988,59 @@ namespace OpenMS::Internal
         out.flush();
         logger_.endProgress(stored_spectra + stored_chromatograms);
       };
+       // 2) Render uncompressed XML into memory
+  std::ostringstream tmp;
+  write_all(tmp);
+  std::string xml_data = tmp.str();
+
+  // 3) Check if we need gzip
+  String fn_lower = _filename; fn_lower.toLower();
+  bool do_compress = fn_lower.hasSuffix(".gz");
+
     
     
-         if (do_compress)
-        {
-          namespace io = boost::iostreams;
-      
-          // 1) Create a filtering_streambuf chain
-          io::filtering_streambuf<io::output> outbuf;
-          outbuf.push(io::gzip_compressor(gz_params));
-      
-          // 2) Wrap the std::streambuf* in a Boost Device
-          io::stream_buffer<std::streambuf*> dev(os.rdbuf());
-          outbuf.push(dev);
-      
-          // 3) Tie it all to a temporary ostream
-          std::ostream gzip_os(&outbuf);
-      
-          write_all(gzip_os);
-          gzip_os.flush();  // flush through the compressor
-        }
-        else
-        {
-          write_all(os);
-        }
-      }
+  if (do_compress)
+  {
+    // Open gzip file for writing
+    gzFile gf = gzopen(_filename.c_str(), "wb");
+    if (!gf)
+    {
+      throw Exception::UnableToCreateFile(
+        __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, _filename);
+    }
+
+    // Write compressed bytes
+    z_off_t written = gzwrite(gf,
+                              reinterpret_cast<const void*>(xml_data.data()),
+                              static_cast<unsigned>(xml_data.size()));
+    if (written < 0 || written != static_cast<z_off_t>(xml_data.size()))
+    {
+      gzclose(gf);
+      throw Exception::UnableToCreateFile(
+        __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+        "Failed to gzip‐write to " + _filename);
+    }
+    gzclose(gf);
+  }
+  else
+  {
+    // Uncompressed write must also check for failure
+    std::ofstream ofs(_filename.c_str(), std::ios::binary);
+    if (!ofs)
+    {
+      throw Exception::UnableToCreateFile(
+        __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, _filename);
+    }
+    ofs << xml_data;
+    if (!ofs)
+    {
+      throw Exception::UnableToCreateFile(
+        __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+        "Failed to write to " + _filename);
+    }
+    ofs.close();
+  }
+}
 
    
 
