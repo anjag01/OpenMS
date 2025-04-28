@@ -48,7 +48,9 @@ jobs:
             # clang.exe is also installed but untested (might crash with our VS specific compiler definitions)
             # clang-cl.exe might be used instead.
             compiler: cl.exe
-            compiler_ver: default
+            # VS 2022: 14.30-14.39 (corresponds to MSVC v143)
+            # VS 2019: 14.20-14.29 (corresponds to MSVC v142)
+            compiler_ver: 14.36    # Specific toolset version for VS 2022 -- must (roughly) match Qt6 compiler (see below)
 
           - os: macos-13
             # Since the appleclang version is dependent on the XCode versions that are installed
@@ -226,7 +228,8 @@ jobs:
       if: startsWith(matrix.os, 'windows')
       uses: jurplel/install-qt-action@v4
       with:
-        version: '6.7.2'
+        version: '6.8.3'    ## Note this version is build with win64_msvc2022_64 and should always match what we use
+        arch: 'win64_msvc2022_64'
         cache: 'false'
         archives: 'qtsvg qtimageformats qtbase'
 
