@@ -1199,24 +1199,24 @@ END_SECTION
 
 START_SECTION([EXTRA])
 {
-  // Lade ein MzML-Testfile
+  // Load MzML testfile
   MSExperiment exp;
   MzMLFile mzml;
   mzml.load(OPENMS_GET_TEST_DATA_PATH("ChromatogramExtractor_input.mzML"), exp);
 
-  // Speichere es mit GZIP-Kompression über deine Boost-Integration
+  // Safe with gzip compression
   std::string compressed_file;
   NEW_TMP_FILE_EXT(compressed_file, ".gz");
   mzml.store(compressed_file, exp);
 
-  // Stelle sicher, dass Datei geschrieben wurde
-  TEST_EQUAL(File::exists(compressed_file), true);
+  // Checks if file got writen
+  TEST_TRUE(File::exists(compressed_file));
 
-  // Lade erneut über OpenMS
+  // Load via OpenMS
   MSExperiment exp2;
   mzml.load(compressed_file, exp2);
 
-  // Validierung
+  // Validation
   TEST_EQUAL(exp.getNrSpectra(), exp2.getNrSpectra());
   TEST_EQUAL(exp.getNrChromatograms(), exp2.getNrChromatograms());
   for (Size s = 0; s < exp.size(); ++s)
@@ -1237,7 +1237,7 @@ START_SECTION(void transform(const String& filename_in, Interfaces::IMSDataConsu
   TICConsumer consumer;
   MzMLFile mzml;
   PeakMap map;
-  String in = OPENMS_GET_TEST_DATA_PATH("/buffer/ag_bsc/pmsb/benden94/openms/src/tests/class_tests/openms/data/ChromatogramExtractor_input.mzML");
+  String in = OPENMS_GET_TEST_DATA_PATH("MzMLFile1.mzML");
 
   PeakFileOptions opt = mzml.getOptions();
   opt.setFillData(true); // whether to actually load any data
