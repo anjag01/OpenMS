@@ -3912,18 +3912,6 @@ namespace OpenMS::Internal
       os << "\t\t\t\t\t</product>\n";
     }
 
-    #include <wordexp.h> // For POSIX ~ expansion
-    #include <boost/iostreams/filtering_stream.hpp>
-    #include <boost/iostreams/filter/gzip.hpp>
-    #include <fstream>
-    
-    #include <wordexp.h> // For POSIX ~ expansion
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
-#include <boost/iostreams/device/file.hpp>
-#include <fstream>
-#include <stdexcept>
-
 void MzMLHandler::writeTo(std::ostream& os) {
   const bool compress = !file_.empty() && file_.toLower().hasSuffix(".gz");
 
