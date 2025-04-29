@@ -124,7 +124,7 @@ public:
       void characters(const XMLCh* const chars, const XMLSize_t length) override;
 
       /// Docu in base class XMLHandler::writeTo
-      void writeTo(std::ostream& os);
+      void writeTo(std::ostream& os, const String& filename);
 
 
       //@}

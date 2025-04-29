@@ -21,6 +21,7 @@
 #include <boost/iostreams/filter/gzip.hpp> 
 #include <boost/iostreams/stream_buffer.hpp>        
 #include <ostream> 
+#include <sstream>
 #include <fstream>
 #include <zlib.h>
 #include <streambuf>                                 
@@ -47,7 +48,8 @@ namespace OpenMS::Internal
       cexp_ = &exp;
     }
 
-    /// delegated c'tor for the common things
+    
+ /// delegated c'tor for the common things
     MzMLHandler::MzMLHandler(const String& filename, const String& version, const ProgressLogger& logger)
       : XMLHandler(filename, version),
         logger_(logger),
@@ -3916,92 +3918,87 @@ namespace OpenMS::Internal
       os << "\t\t\t\t\t</product>\n";
     }
 
-
-   void MzMLHandler::writeTo(std::ostream& os)
-{
-  // Prepare a lambda that writes the full mzML XML to any ostream
-  auto write_all = [&](std::ostream& s)
-  {
-    const MapType& exp = *cexp_;
-    logger_.startProgress(0, exp.size() + exp.getChromatograms().size(), "storing mzML file");
-    Int progress = 0;
-    UInt stored_spectra = 0, stored_chromatograms = 0;
-
-    Internal::MzMLValidator validator(mapping_, cv_);
-    std::vector<std::vector<ConstDataProcessingPtr>> dps;
-
-    // 1) Header
-    writeHeader_(s, exp, dps, validator);
-
-    // 2) Spectra
-    if (!exp.empty())
+    void MzMLHandler::writeTo(std::ostream& os, const String& filename)
     {
-      s << "\t\t<spectrumList count=\"" << exp.size()
-        << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-      bool renew_ids = false;
-      for (Size i = 0; i < exp.size(); ++i)
-        if (!exp[i].getNativeID().has('=')) { renew_ids = true; break; }
-      if (renew_ids)
-        warning(STORE, "Invalid native IDs detected; using integer-based IDs.");
-
-      for (Size i = 0; i < exp.size(); ++i)
+      // Determine if gzip compression is requested (.gz or .mzML.gz suffix)
+      bool do_compress = !filename.empty() && (filename.hasSuffix("tolower.gz") || filename.hasSuffix(".mzML.gz"));
+      // Writer lambda: writes full uncompressed mzML to any std::ostream
+      auto write_uncompressed = [&](std::ostream& out)
       {
-        logger_.setProgress(progress++);
-        writeSpectrum_(s, exp[i], i, validator, renew_ids, dps);
-        ++stored_spectra;
-      }
-      s << "\t\t</spectrumList>\n";
-    }
-
-    // 3) Chromatograms
-    if (!exp.getChromatograms().empty())
-    {
-      s << "\t\t<chromatogramList count=\""
-        << exp.getChromatograms().size()
-        << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-      for (Size i = 0; i < exp.getChromatograms().size(); ++i)
+        const MapType& exp = *cexp_;
+        logger_.startProgress(0, exp.size() + exp.getChromatograms().size(), "storing mzML file");
+        Int progress = 0;
+        UInt stored_spectra = 0, stored_chromatograms = 0;
+        Internal::MzMLValidator validator(mapping_, cv_);
+        std::vector<std::vector<ConstDataProcessingPtr>> dps;
+        writeHeader_(out, exp, dps, validator);
+        // spectra
+        if (!exp.empty())
+        {
+          out << "\t\t<spectrumList count=\"" << exp.size()
+              << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+          bool renew_native_ids = false;
+          for (Size i = 0; i < exp.size(); ++i)
+            if (!exp[i].getNativeID().has('=')) { renew_native_ids = true; break; }
+          if (renew_native_ids)
+            warning(STORE, "Invalid native IDs detected; using integer-based nativeID format for all spectra.");
+          for (Size i = 0; i < exp.size(); ++i)
+          {
+            logger_.setProgress(progress++);
+            writeSpectrum_(out, exp[i], i, validator, renew_native_ids, dps);
+            ++stored_spectra;
+          }
+          out << "\t\t</spectrumList>\n";
+        }
+        // chromatograms
+        if (!exp.getChromatograms().empty())
+        {
+          out << "\t\t<chromatogramList count=\""
+              << exp.getChromatograms().size()
+              << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+          for (Size i = 0; i < exp.getChromatograms().size(); ++i)
+          {
+            logger_.setProgress(progress++);
+            writeChromatogram_(out, exp.getChromatograms()[i], i, validator);
+            ++stored_chromatograms;
+          }
+          out << "\t\t</chromatogramList>\n";
+        }
+        // write footer (includes indexList using tellp offsets)
+        MzMLHandlerHelper::writeFooter_(out, options_, spectra_offsets_, chromatograms_offsets_);
+        OPENMS_LOG_INFO << stored_spectra << " spectra and "
+                        << stored_chromatograms << " chromatograms stored"
+                        << (do_compress ? " (to be compressed)." : " (uncompressed).") << std::endl;
+        out.flush();
+        logger_.endProgress(stored_spectra + stored_chromatograms);
+      };
+      if (!do_compress)
       {
-        logger_.setProgress(progress++);
-        writeChromatogram_(s, exp.getChromatograms()[i], i, validator);
-        ++stored_chromatograms;
+        // direct uncompressed write
+        write_uncompressed(os);
+        return;
       }
-      s << "\t\t</chromatogramList>\n";
+      // Two-pass compression:
+      // Pass 1: write uncompressed XML to memory
+      std::ostringstream mem_out;
+      write_uncompressed(mem_out);
+      const std::string uncompressed_data = mem_out.str();
+      // Pass 2: compress into `compressed_data`
+      std::string compressed_data;
+      {
+        namespace io = boost::iostreams;
+        io::filtering_streambuf<io::output> buf;
+        buf.push(io::gzip_compressor());
+        buf.push(io::back_inserter(compressed_data));
+        std::ostream compressor(&buf);
+        compressor << uncompressed_data;
+        // when buf goes out of scope it finalizes the gzip stream
+      }
+      // Write compressed data to output stream
+      os.write(compressed_data.data(), static_cast<std::streamsize>(compressed_data.size()));
+      os.flush();
     }
-
-    // 4) Footer (index)
-    MzMLHandlerHelper::writeFooter_(s, options_, spectra_offsets_, chromatograms_offsets_);
-
-    OPENMS_LOG_INFO << stored_spectra << " spectra and "
-                    << stored_chromatograms << " chromatograms stored"
-                    << std::endl;
-
-    s.flush();
-    logger_.endProgress(stored_spectra + stored_chromatograms);
-  };
-
-  // Determine if we should gzip based on the filename suffix
-  String fn = _filename; fn.toLower();
-  bool do_compress = !fn.empty() && fn.hasSuffix(".gz");
-
-  if (do_compress)
-  {
-    namespace io = boost::iostreams;
-    // Wrap 'os' in a gzip compressor
-    io::filtering_ostream comp_out;
-    comp_out.push(io::gzip_compressor());  // default compression level
-    comp_out.push(os);
-
-    // Write through compressor
-    write_all(comp_out);
-    comp_out.flush();  // emit gzip trailer
-  }
-  else
-  {
-    // Uncompressed: write directly
-    write_all(os);
-  }
-}
-
+    
    
 
     void MzMLHandler::writeHeader_(std::ostream& os,

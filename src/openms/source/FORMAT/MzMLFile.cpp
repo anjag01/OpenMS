@@ -151,36 +151,38 @@ namespace OpenMS
   }
 
   void MzMLFile::store(const String& filename, const PeakMap& map) const
-{
-    Internal::MzMLHandler handler(map, filename, getVersion(), *this);
-    handler.setOptions(options_);
-
-    // Open the output file directly (binary mode)
-    std::ofstream ofs(filename.c_str(), std::ios::binary);
-    if (!ofs)
-    {
-        throw Exception::UnableToCreateFile(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, filename);
-    }
-
-    // Call the updated writeTo (only the ostream now)
-    handler.writeTo(ofs);
-
-    ofs.close();
-}
+  {
+      Internal::MzMLHandler handler(map, filename, getVersion(), *this);
+      handler.setOptions(options_);
+  
+      // Open the output file directly (binary mode)
+      std::ofstream ofs(filename.c_str(), std::ios::binary);
+      if (!ofs)
+      {
+          throw Exception::UnableToCreateFile(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, filename);
+      }
+  
+      // Call the updated writeTo (only the ostream now)
+      handler.writeTo(ofs, filename);
+  
+      ofs.close();
+  } 
+  
 
   
 
-void MzMLFile::storeBuffer(std::string & output, const PeakMap& map) const
-{
-  // Force the handler to compress by giving it a “.mzML.gz” name
-  const String dummy_fname = "buffer.mzML.gz";
-  Internal::MzMLHandler handler(map, dummy_fname, getVersion(), *this);
-  handler.setOptions(options_);
-
-  std::ostringstream oss(std::ios::binary);
-  handler.writeTo(oss);         // now do_compress == true
-  output = oss.str();
-}
+  void MzMLFile::storeBuffer(std::string & output, const PeakMap& map) const
+  {
+    const String dummy_fname = "buffer.gz";
+    Internal::MzMLHandler handler(map, dummy_fname, getVersion(), *this);
+    handler.setOptions(options_);
+  
+    std::ostringstream oss(std::ios::binary); // use binary to be safe
+    handler.writeTo(oss, dummy_fname); // pass both arguments
+  
+    output = oss.str(); // store the buffer into output string
+  }
+  
 
 
 
