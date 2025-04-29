@@ -19,6 +19,10 @@
 #include <OpenMS/SYSTEM/File.h>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#include <wordexp.h> // For POSIX ~ expansion
+#include <boost/iostreams/device/file.hpp>
+#include <fstream>
+#include <stdexcept>
 
 #include <map>
 
@@ -3908,125 +3912,121 @@ namespace OpenMS::Internal
       os << "\t\t\t\t\t</product>\n";
     }
 
-    void MzMLHandler::writeTo(std::ostream& os)
-{
-  // Case-insensitive check: convert member filename to lowercase
-  String filename_lower = file_;
-  filename_lower.toLower();
+    #include <wordexp.h> // For POSIX ~ expansion
+    #include <boost/iostreams/filtering_stream.hpp>
+    #include <boost/iostreams/filter/gzip.hpp>
+    #include <fstream>
+    
+    #include <wordexp.h> // For POSIX ~ expansion
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/device/file.hpp>
+#include <fstream>
+#include <stdexcept>
 
-  // Determine if gzip compression is requested (.gz or .mzML.gz suffix)
-  const bool compress = !filename_lower.empty() &&
-                        (filename_lower.hasSuffix(".gz"));
+void MzMLHandler::writeTo(std::ostream& os) {
+  const bool compress = !file_.empty() && file_.toLower().hasSuffix(".gz");
 
-  // Optional: choose compression level (1 = fastest, 9 = best compression)
-  boost::iostreams::gzip_params gz_params;
-  gz_params.level = boost::iostreams::gzip::best_speed;  // Lower CPU/memory usage for large files
+    
+    boost::iostreams::gzip_params gz_params;
+    gz_params.level = boost::iostreams::gzip::best_speed;
 
-  auto write_all = [&](std::ostream& out)
-  {
-    const MapType& exp = *cexp_;
-    logger_.startProgress(0, exp.size() + exp.getChromatograms().size(), "storing mzML file");
+    
+    auto write_all = [&](std::ostream& out) {
+        const MapType& exp = *cexp_;
+        logger_.startProgress(0, exp.size() + exp.getChromatograms().size(), "storing mzML file");
 
-    Int progress = 0;
-    UInt stored_spectra = 0;
-    UInt stored_chromatograms = 0;
-    Internal::MzMLValidator validator(mapping_, cv_);
-    std::vector<std::vector<ConstDataProcessingPtr>> dps;
+        Int progress = 0;
+        UInt stored_spectra = 0;
+        UInt stored_chromatograms = 0;
+        Internal::MzMLValidator validator(mapping_, cv_);
+        std::vector<std::vector<ConstDataProcessingPtr>> dps;
 
-    writeHeader_(out, exp, dps, validator);
+        writeHeader_(out, exp, dps, validator);
 
-    // Write spectra list
-    if (!exp.empty())
-    {
-      out << "\t\t<spectrumList count=\"" << exp.size()
-          << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+        
+        if (!exp.empty()) {
+            out << "\t\t<spectrumList count=\"" << exp.size()
+                << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
 
-      bool renew_native_ids = false;
-      for (Size i = 0; i < exp.size(); ++i)
-      {
-        if (!exp[i].getNativeID().has('='))
-        {
-          renew_native_ids = true;
-          break;
+            bool renew_native_ids = false;
+            for (Size i = 0; i < exp.size(); ++i) {
+                if (!exp[i].getNativeID().has('=')) {
+                    renew_native_ids = true;
+                    break;
+                }
+            }
+            if (renew_native_ids) {
+                warning(STORE, "Invalid native IDs detected; using integer-based IDs.");
+            }
+
+            for (Size i = 0; i < exp.size(); ++i) {
+                logger_.setProgress(progress++);
+                writeSpectrum_(out, exp[i], i, validator, renew_native_ids, dps);
+                ++stored_spectra;
+            }
+            out << "\t\t</spectrumList>\n";
         }
+
+        // Write chromatogram list
+        if (!exp.getChromatograms().empty()) {
+            out << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size()
+                << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+            for (Size i = 0; i < exp.getChromatograms().size(); ++i) {
+                logger_.setProgress(progress++);
+                writeChromatogram_(out, exp.getChromatograms()[i], i, validator);
+                ++stored_chromatograms;
+            }
+            out << "\t\t</chromatogramList>\n";
+        }
+
+        // Write footer (indexList)
+        MzMLHandlerHelper::writeFooter_(out, options_, spectra_offsets_, chromatograms_offsets_);
+
+        OPENMS_LOG_INFO << stored_spectra << " spectra and "
+                       << stored_chromatograms << " chromatograms stored"
+                       << (compress ? " (compressed)." : " (uncompressed).") << std::endl;
+
+        out.flush();
+    };
+
+    
+    try {
+      if (compress) {
+          // Create a filtering stream without seek requirements
+          boost::iostreams::filtering_ostream comp_out;
+          comp_out.push(boost::iostreams::gzip_compressor(gz_params));
+          
+          // Critical fix: Use a reference_wrapper to prevent seeking
+          comp_out.push(boost::ref(os));
+
+          write_all(comp_out);
+
+          // Explicit flush check
+          comp_out.flush();
+          if (!comp_out.good()) {
+              throw Exception::ConversionError(
+                  __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                  "Failed to flush compressed data to '" + expanded_file + "'");
+          }
+      } else {
+          write_all(os);
       }
-      if (renew_native_ids)
-      {
-        warning(STORE, "Invalid native IDs detected; using integer-based IDs.");
-      }
-
-      for (Size i = 0; i < exp.size(); ++i)
-      {
-        logger_.setProgress(progress++);
-        writeSpectrum_(out, exp[i], i, validator, renew_native_ids, dps);
-        ++stored_spectra;
-      }
-      out << "\t\t</spectrumList>\n";
-    }
-
-    // Write chromatogram list
-    if (!exp.getChromatograms().empty())
-    {
-      out << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size()
-          << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-      for (Size i = 0; i < exp.getChromatograms().size(); ++i)
-      {
-        logger_.setProgress(progress++);
-        writeChromatogram_(out, exp.getChromatograms()[i], i, validator);
-        ++stored_chromatograms;
-      }
-      out << "\t\t</chromatogramList>\n";
-    }
-
-    // Write footer (indexList)
-    MzMLHandlerHelper::writeFooter_(out, options_, spectra_offsets_, chromatograms_offsets_);
-
-    OPENMS_LOG_INFO << stored_spectra << " spectra and "
-                    << stored_chromatograms << " chromatograms stored"
-                    << (compress ? " (compressed)." : " (uncompressed).") << std::endl;
-
-    out.flush();
-  };
-
-  try
-  {
-    if (compress)
-    {
-      boost::iostreams::filtering_ostream comp_out;
-      comp_out.push(boost::iostreams::gzip_compressor(gz_params));
-      comp_out.push(os);
-
-      write_all(comp_out);
-
-      if (!comp_out.flush())
-      {
-        throw Exception::ConversionError(
+  }
+  catch (const boost::iostreams::gzip_error& e) {
+      throw Exception::ConversionError(
           __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-          "Failed to flush compressed data to '" + file_ + "'");
-      }
-    }
-    else
-    {
-      write_all(os);
-    }
+          String("GZip compression failed for '") + expanded_file + "' (error " +
+          String(e.error()) + "): " + e.what());
   }
-  catch (const boost::iostreams::gzip_error& e)
-  {
-    throw Exception::ConversionError(
-      __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-      String("GZip compression failed for '") + file_ + "' (error " +
-      String(e.error()) + "): " + e.what());
-  }
-  catch (const std::ios_base::failure& e)
-  {
-    throw Exception::ConversionError(
-      __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-      String("Stream error while writing to '") + file_ + "': " + e.what());
+  catch (const std::ios_base::failure& e) {
+      throw Exception::ConversionError(
+          __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+          String("Stream error while writing to '") + expanded_file + "': " + e.what());
   }
 
   logger_.endProgress(cexp_->size() + cexp_->getChromatograms().size());
 }
-
 
     void MzMLHandler::writeHeader_(std::ostream& os,
                                    const MapType& exp,

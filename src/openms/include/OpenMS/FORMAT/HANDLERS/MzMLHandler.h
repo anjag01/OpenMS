@@ -123,7 +123,7 @@ public:
       void characters(const XMLCh* const chars, const XMLSize_t length) override;
 
       /// Docu in base class XMLHandler::writeTo
-      void writeTo(std::ostream& os) override;
+      void writeTo(std::ostream& os);
 
       //@}
 
@@ -277,7 +277,10 @@ protected:
        * @name Helper functions for writing data
        */
       //@{
-
+      
+      /// Write the actual content (separated for compressed/uncompressed handling)
+      void writeContent_(std::ostream& os);
+      
       /// Write out XML header including (everything up to spectrumList / chromatogramList
       void writeHeader_(std::ostream& os,
                         const MapType& exp,

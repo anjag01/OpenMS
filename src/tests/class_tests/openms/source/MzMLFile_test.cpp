@@ -1207,7 +1207,7 @@ START_SECTION([EXTRA])
   // Speichere es mit GZIP-Kompression über deine Boost-Integration
   std::string compressed_file;
   NEW_TMP_FILE_EXT(compressed_file, ".gz");
-  mzml.store(compressed_file, exp); // <- deine angepasste store() sollte hier Boost::gzip verwenden
+  mzml.store(compressed_file, exp);
 
   // Stelle sicher, dass Datei geschrieben wurde
   TEST_EQUAL(File::exists(compressed_file), true);

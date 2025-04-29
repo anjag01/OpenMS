@@ -389,7 +389,7 @@ public:
       @see storeBuffer()  
       @see writeHeader_, writeSpectrum_, writeChromatogram_  
     */
-      virtual void writeTo(std::ostream& os) override;
+      virtual void writeTo(std::ostream& os);
 
       /// handler which support partial loading, implement this method
       virtual LOADDETAIL getLoadDetail() const;
