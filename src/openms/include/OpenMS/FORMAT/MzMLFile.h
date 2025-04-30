@@ -17,6 +17,12 @@
 #include <OpenMS/DATASTRUCTURES/ListUtils.h> // StringList
 #include <OpenMS/INTERFACES/IMSDataConsumer.h>
 
+//need for boost function, compressen into gzip
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <fstream>
+
 #include <map>
 
 namespace OpenMS
@@ -81,13 +87,22 @@ public:
     void loadSize(const String & filename, Size& scount, Size& ccount);
 
     /**
-      @brief Stores a map in an MzML file.
+  @brief Stores a map in an MzML file with gzip compression.
+  
+  The method writes the data in gzip-compressed format using Boost Iostreams.
+  
+  @p map has to be an MSExperiment or have the same interface.
 
-      @p map has to be an MSExperiment or have the same interface.
+  @note The output is automatically compressed using gzip (boost::iostreams::gzip_compressor).
+  All data is flushed and files are properly closed after writing.
 
-      @exception Exception::UnableToCreateFile is thrown if the file could not be created
-    */
-    void store(const String& filename, const PeakMap& map) const;
+  @param filename The name of the output file (will be created or overwritten)
+  @param map The PeakMap data to be stored
+
+  @exception Exception::UnableToCreateFile is thrown if the file could not be created
+  @exception Exception::IOException may be thrown if writing or compression fails
+*/
+void store(const String& filename, const PeakMap& map) const;
 
     /**
       @brief Stores a map in an output string.
