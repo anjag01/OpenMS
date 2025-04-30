@@ -1090,7 +1090,18 @@ START_SECTION((void storeBuffer(std::string & output, const PeakMap& map) const)
     TEST_EQUAL(String(out).hasSubstring("<fileChecksum>0</fileChecksum>"), true)
     TEST_EQUAL(String(out).hasSubstring("</indexedmzML>"), true)
     
-   
+    // Check that indices exist for all spectra and chromatograms
+    for (Size i = 0; i < exp_original.size(); ++i)
+    {
+      String id = exp_original[i].getNativeID();
+      TEST_EQUAL(String(out).hasSubstring("<offset idRef=\"" + id + "\">"), true)
+    }
+    
+    for (Size i = 0; i < exp_original.getChromatograms().size(); ++i)
+    {
+      String id = exp_original.getChromatograms()[i].getNativeID();
+      TEST_EQUAL(String(out).hasSubstring("<offset idRef=\"" + id + "\">"), true)
+    }
   }
   
   //test with empty map
