@@ -1228,16 +1228,25 @@ END_SECTION
 
 START_SECTION([EXTRA])
 {
+<<<<<<< HEAD
   // load a MzML file
+=======
+  // Lade ein MzML-Testfile
+>>>>>>> bdb11c23a08a6712dc8e46d9422f982c42f9323e
   MSExperiment exp;
   MzMLFile mzml;
   mzml.load(OPENMS_GET_TEST_DATA_PATH("ChromatogramExtractor_input.mzML"), exp);
 
+<<<<<<< HEAD
   // Save with GZIP-Compression integrating Boost
+=======
+  // Speichere es mit GZIP-Kompression über deine Boost-Integration
+>>>>>>> bdb11c23a08a6712dc8e46d9422f982c42f9323e
   std::string compressed_file;
   NEW_TMP_FILE_EXT(compressed_file, ".gz");
   mzml.store(compressed_file, exp);
 
+<<<<<<< HEAD
   // Make sure that the data got written
   TEST_EQUAL(File::exists(compressed_file), true);
 
@@ -1246,6 +1255,16 @@ START_SECTION([EXTRA])
   mzml.load(compressed_file, exp2);
 
   // Validation
+=======
+  // Stelle sicher, dass Datei geschrieben wurde
+  TEST_EQUAL(File::exists(compressed_file), true);
+
+  // Lade erneut über OpenMS
+  MSExperiment exp2;
+  mzml.load(compressed_file, exp2);
+
+  // Validierung
+>>>>>>> bdb11c23a08a6712dc8e46d9422f982c42f9323e
   TEST_EQUAL(exp.getNrSpectra(), exp2.getNrSpectra());
   TEST_EQUAL(exp.getNrChromatograms(), exp2.getNrChromatograms());
   for (Size s = 0; s < exp.size(); ++s)
