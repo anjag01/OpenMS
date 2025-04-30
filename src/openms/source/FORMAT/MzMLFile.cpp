@@ -162,23 +162,21 @@ namespace OpenMS
   #include <fstream>
 #include <sstream>
 
+
 void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
 {
-    // 1) write a real temporary .mzML (with indexList & offsets) to disk
-    String tmp = File::getTemporaryFile();   
-    String fn  = tmp + ".mzML";              
-
-    store(fn, map);                          // uses the file-based path 
-
-    // 2) read the file back in binary, preserving all newlines and tags exactly
-    std::ifstream ifs(fn.c_str(), std::ios::in | std::ios::binary);
-    std::ostringstream oss;
-    oss << ifs.rdbuf();
-    output = oss.str();
-
-    // 3) remove temp file
-    File::remove(fn);
+  Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
+  handler.setOptions(options_);
+  {
+    std::stringstream os;
+    //set high precision for writing of floating point numbers
+    os.precision(writtenDigits(double()));
+    // write data and close stream
+    handler.writeTo(os);
+    output = os.str();
+  }
 }
+
 
 
 
