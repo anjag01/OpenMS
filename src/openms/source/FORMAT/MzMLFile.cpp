@@ -150,41 +150,28 @@ namespace OpenMS
     safeParse_(filename, &handler);
   }
 
+
   void MzMLFile::store(const String& filename, const PeakMap& map) const
   {
-      Internal::MzMLHandler handler(map, filename, getVersion(), *this);
-      handler.setOptions(options_);
-  
-      // Open the output file directly (binary mode)
-      std::ofstream ofs(filename.c_str(), std::ios::binary);
-      if (!ofs)
-      {
-          throw Exception::UnableToCreateFile(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, filename);
-      }
-  
-      // Call the updated writeTo (only the ostream now)
-      handler.writeTo(ofs, filename);
-  
-      ofs.close();
-  } 
-  
-
-  
-
-  void MzMLFile::storeBuffer(std::string & output, const PeakMap& map) const
-  {
-    const String dummy_fname = "buffer.gz";
-    Internal::MzMLHandler handler(map, dummy_fname, getVersion(), *this);
+    Internal::MzMLHandler handler(map, filename, getVersion(), *this);
     handler.setOptions(options_);
-  
-    std::ostringstream oss(std::ios::binary); // use binary to be safe
-    handler.writeTo(oss, dummy_fname); // pass both arguments
-  
-    output = oss.str(); // store the buffer into output string
+    save_(filename, &handler);
   }
   
-
-
+  
+  void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
+  {
+    Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
+    handler.setOptions(options_);
+    {
+      std::stringstream os;
+      //set high precision for writing of floating point numbers
+      os.precision(writtenDigits(double()));
+      // write data and close stream
+      handler.writeTo(os);
+      output = os.str();
+    }
+  }
 
   void MzMLFile::transform(const String& filename_in, Interfaces::IMSDataConsumer* consumer, bool skip_full_count, bool skip_first_pass)
   {

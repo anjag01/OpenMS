@@ -363,8 +363,33 @@ public:
       /// Parsing method for closing tags
       void endElement(const XMLCh * const uri, const XMLCh * const localname, const XMLCh * const qname) override;
 
-      /// Writes the contents to a stream.
-      virtual void writeTo(std::ostream & /*os*/);
+      /**
+      @brief Writes the mzML contents to a given output stream.
+
+      This function serializes the mzML data structure to the provided `std::ostream`.  
+      If the filename (stored in `file_`) ends with `.gz`, the output will be **gzip-compressed**.
+
+      ### Compression Behavior  
+      - Uses **zlib** (via `boost::iostreams`) with **fastest compression level** by default.  
+      - **Requires seekable streams** (e.g., file streams).  
+        - If the stream is non-seekable (e.g., pipes, sockets), compression will **fail with `ConversionError`**.  
+        - Use `storeBuffer()` for non-seekable targets (e.g., network streams).  
+
+      ### Error Handling  
+      @exception Exception::ConversionError  
+        - If **compression fails** (e.g., `boost::iostreams::gzip_error`).  
+        - If the **stream is non-seekable** but compression was requested.  
+        - If **writing/flushing** fails (`std::ios_base::failure`).  
+
+      @note  
+      - Compression is **determined solely by `file_`'s extension**, not the stream's state.  
+      - For **non-seekable streams**, write to an intermediate buffer (e.g., `std::stringstream`) or use `storeBuffer()`.  
+
+      @see MzMLHandlerHelper::writeFooter_  
+      @see storeBuffer()  
+      @see writeHeader_, writeSpectrum_, writeChromatogram_  
+    */
+      virtual void writeTo(std::ostream& os);
 
       /// handler which support partial loading, implement this method
       virtual LOADDETAIL getLoadDetail() const;
@@ -974,5 +999,4 @@ private:
 
   }   // namespace Internal
 } // namespace OpenMS
-
 
