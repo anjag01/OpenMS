@@ -1066,65 +1066,36 @@ END_SECTION
 START_SECTION((void storeBuffer(std::string & output, const PeakMap& map) const))
 {
   MzMLFile file;
-  
+
   // test with full file
   {
     // load map
     PeakMap exp_original;
     file.load(OPENMS_GET_TEST_DATA_PATH("MzMLFile_1.mzML"), exp_original);
-    
+
     // store map in our output buffer
     std::string out;
     file.storeBuffer(out, exp_original);
-    
-    // Check the beginning of the file
+    TEST_EQUAL(out.size(), 38070)
     TEST_EQUAL(out.substr(0, 100), "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<indexedmzML xmlns=\"http://psi.hupo.org/ms/mzml\" xmlns:x")
-    
-    // Check important content elements
+    TEST_EQUAL(out.substr(38070 - 99, 38070 - 1), "</indexList>\n<indexListOffset>37622</indexListOffset>\n<fileChecksum>0</fileChecksum>\n</indexedmzML>")
+
     TEST_EQUAL(String(out).hasSubstring("<spectrumList count=\"4\" defaultDataProcessingRef=\"dp_sp_0\">"), true)
     TEST_EQUAL(String(out).hasSubstring("<chromatogramList count=\"2\" defaultDataProcessingRef=\"dp_sp_0\">"), true)
-    
-    // Check end of file structural elements - not exact positions
-    TEST_EQUAL(String(out).hasSubstring("</indexList>"), true)
-    TEST_EQUAL(String(out).hasSubstring("<indexListOffset>"), true)
-    TEST_EQUAL(String(out).hasSubstring("<fileChecksum>0</fileChecksum>"), true)
-    TEST_EQUAL(String(out).hasSubstring("</indexedmzML>"), true)
-    
-    // Check that indices exist for all spectra and chromatograms
-    for (Size i = 0; i < exp_original.size(); ++i)
-    {
-      String id = exp_original[i].getNativeID();
-      TEST_EQUAL(String(out).hasSubstring("<offset idRef=\"" + id + "\">"), true)
-    }
-    
-    for (Size i = 0; i < exp_original.getChromatograms().size(); ++i)
-    {
-      String id = exp_original.getChromatograms()[i].getNativeID();
-      TEST_EQUAL(String(out).hasSubstring("<offset idRef=\"" + id + "\">"), true)
-    }
   }
-  
+
   //test with empty map
   {
     PeakMap empty;
-    
+
     //store map
     std::string out;
     file.storeBuffer(out, empty);
-    
-    // Check the beginning of the file
+    TEST_EQUAL(out.size(), 3167)
     TEST_EQUAL(out.substr(0, 100), "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<indexedmzML xmlns=\"http://psi.hupo.org/ms/mzml\" xmlns:x")
-    
-    // Check for empty lists
-    TEST_EQUAL(String(out).hasSubstring("<spectrumList count=\"0\""), true)
-    TEST_EQUAL(String(out).hasSubstring("<chromatogramList count=\"0\""), true)
-    
-    // Check end of file structural elements
-    TEST_EQUAL(String(out).hasSubstring("</indexList>"), true)
-    TEST_EQUAL(String(out).hasSubstring("<indexListOffset>"), true)
-    TEST_EQUAL(String(out).hasSubstring("<fileChecksum>0</fileChecksum>"), true)
-    TEST_EQUAL(String(out).hasSubstring("</indexedmzML>"), true)
+    TEST_EQUAL(out.substr(3167-98, 3167-1), "</indexList>\n<indexListOffset>2978</indexListOffset>\n<fileChecksum>0</fileChecksum>\n</indexedmzML>")
   }
+
 }
 END_SECTION
 
@@ -1228,43 +1199,24 @@ END_SECTION
 
 START_SECTION([EXTRA])
 {
-<<<<<<< HEAD
-  // load a MzML file
-=======
-  // Lade ein MzML-Testfile
->>>>>>> bdb11c23a08a6712dc8e46d9422f982c42f9323e
+  // Load MzML testfile
   MSExperiment exp;
   MzMLFile mzml;
   mzml.load(OPENMS_GET_TEST_DATA_PATH("ChromatogramExtractor_input.mzML"), exp);
 
-<<<<<<< HEAD
-  // Save with GZIP-Compression integrating Boost
-=======
-  // Speichere es mit GZIP-Kompression über deine Boost-Integration
->>>>>>> bdb11c23a08a6712dc8e46d9422f982c42f9323e
+  // Safe with gzip compression
   std::string compressed_file;
   NEW_TMP_FILE_EXT(compressed_file, ".gz");
   mzml.store(compressed_file, exp);
 
-<<<<<<< HEAD
-  // Make sure that the data got written
-  TEST_EQUAL(File::exists(compressed_file), true);
+  // Checks if file got writen
+  TEST_TRUE(File::exists(compressed_file));
 
-  // Load again in OpenMS
+  // Load via OpenMS
   MSExperiment exp2;
   mzml.load(compressed_file, exp2);
 
   // Validation
-=======
-  // Stelle sicher, dass Datei geschrieben wurde
-  TEST_EQUAL(File::exists(compressed_file), true);
-
-  // Lade erneut über OpenMS
-  MSExperiment exp2;
-  mzml.load(compressed_file, exp2);
-
-  // Validierung
->>>>>>> bdb11c23a08a6712dc8e46d9422f982c42f9323e
   TEST_EQUAL(exp.getNrSpectra(), exp2.getNrSpectra());
   TEST_EQUAL(exp.getNrChromatograms(), exp2.getNrChromatograms());
   for (Size s = 0; s < exp.size(); ++s)
@@ -1285,7 +1237,7 @@ START_SECTION(void transform(const String& filename_in, Interfaces::IMSDataConsu
   TICConsumer consumer;
   MzMLFile mzml;
   PeakMap map;
-  String in = OPENMS_GET_TEST_DATA_PATH("/buffer/ag_bsc/pmsb/anjag01/openms/src/tests/class_tests/openms/data/ChromatogramExtractor_input.mzML");
+  String in = OPENMS_GET_TEST_DATA_PATH("MzMLFile1.mzML");
 
   PeakFileOptions opt = mzml.getOptions();
   opt.setFillData(true); // whether to actually load any data
@@ -1306,5 +1258,6 @@ END_SECTION
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
 END_TEST
+
 
 
