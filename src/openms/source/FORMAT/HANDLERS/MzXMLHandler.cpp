@@ -878,7 +878,7 @@ namespace OpenMS::Internal
 
         os << String(ms_level + 1, '\t');
 
-        scan_index_positions.emplace_back(spectrum_id, os.tellp()); // remember scan index
+        scan_index_positions.emplace_back(spectrum_id, 0); // remember scan index
         os << "<scan num=\"" << spectrum_id << "\""
           << " msLevel=\"" << ms_level << "\""
           << " peaksCount=\"" << spec.size() << "\""
@@ -1097,7 +1097,7 @@ namespace OpenMS::Internal
         {
           OPENMS_LOG_INFO << "mzXML: index was not requested, but will be written to maintain MaxQuant compatibility." << std::endl;
         }
-        std::ostream::pos_type index_offset = os.tellp();
+        std::ostream::pos_type index_offset = 0;
         os << "<index name = \"scan\" >\n";
         for (Size i = 0; i < scan_index_positions.size(); ++i)
         {
