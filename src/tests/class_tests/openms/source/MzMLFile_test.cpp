@@ -1076,6 +1076,15 @@ START_SECTION((void storeBuffer(std::string & output, const PeakMap& map) const)
     // store map in our output buffer
     std::string out;
     file.storeBuffer(out, exp_original);
+
+    // Debug: Save the output buffer to a file for inspection
+    std::ofstream debug_out("storeBuffer_output.xml");
+    debug_out << out;
+    debug_out.close();
+
+    // Debug: Log the actual size of the buffer
+    std::cout << "Debug: Output buffer size = " << out.size() << std::endl;
+    
     TEST_EQUAL(out.size(), 38070)
     TEST_EQUAL(out.substr(0, 100), "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<indexedmzML xmlns=\"http://psi.hupo.org/ms/mzml\" xmlns:x")
     TEST_EQUAL(out.substr(38070 - 99, 38070 - 1), "</indexList>\n<indexListOffset>37622</indexListOffset>\n<fileChecksum>0</fileChecksum>\n</indexedmzML>")
