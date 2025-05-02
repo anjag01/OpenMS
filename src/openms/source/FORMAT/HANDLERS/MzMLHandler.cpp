@@ -22,7 +22,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <map>
-#include <boost/iostreams/device/counter.hpp>
+#include <boost/iostreams/filter/counter.hpp> 
 
 
 namespace OpenMS::Internal
@@ -3973,6 +3973,10 @@ namespace OpenMS::Internal
                 for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
                 {
                     logger_.setProgress(progress++);
+                    std::string native_id = renew_native_ids ? String("spectrum=") + s_idx : exp[s_idx].getNativeID();
+                Int64 offset = counter_filter.characters();
+                spectra_offsets_.emplace_back(native_id, offset + 3);
+
                     writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
                     stored_spectra++;
                 }
@@ -3986,6 +3990,11 @@ namespace OpenMS::Internal
                 for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
                 {
                     logger_.setProgress(progress++);
+                    // Record offset before writing chromatogram
+                std::string native_id = exp.getChromatograms()[c_idx].getNativeID();
+                Int64 offset = counter_filter.characters(); 
+                chromatograms_offsets_.emplace_back(native_id, offset + 3);
+
                     writeChromatogram_(*output_stream, exp.getChromatograms()[c_idx], c_idx, validator);
                     stored_chromatograms++;
                 }
@@ -4977,8 +4986,7 @@ namespace OpenMS::Internal
         native_id = String("spectrum=") + s;
       }
 
-      Int64 offset = 0; 
-      spectra_offsets_.emplace_back(native_id, offset + 3);
+    
 
       // IMPORTANT make sure the offset (above) corresponds to the start of the <spectrum tag
       os << "\t\t\t<spectrum id=\"" << writeXMLEscape(native_id) << "\" index=\"" << s << "\" defaultArrayLength=\"" << spec.size() << "\"";
@@ -5557,9 +5565,7 @@ namespace OpenMS::Internal
                                          Size c,
                                          const Internal::MzMLValidator& validator)
     {
-      Int64 offset = 0;
-      chromatograms_offsets_.emplace_back(chromatogram.getNativeID(), offset + 3);
-
+      
       // TODO native id with chromatogram=?? prefix?
       // IMPORTANT make sure the offset (above) corresponds to the start of the <chromatogram tag
       os << "\t\t\t<chromatogram id=\"" << writeXMLEscape(chromatogram.getNativeID()) << "\" index=\"" << c << "\" defaultArrayLength=\"" << chromatogram.size() << "\">" << "\n";
