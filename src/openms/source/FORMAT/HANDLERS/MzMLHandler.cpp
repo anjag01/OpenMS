@@ -3915,12 +3915,12 @@ namespace OpenMS::Internal
     void MzMLHandler::writeTo(std::ostream& os)
 {
     std::string output_file = file_;
-
+    
     // Case-insensitive check for compression
     String filename_lower = output_file;
     filename_lower.toLower();
     const bool compress = !filename_lower.empty() && filename_lower.hasSuffix(".gz");
-
+    
     // Prepare common variables
     const MapType& exp = *(cexp_);
     const Size total_items = exp.size() + exp.getChromatograms().size();
@@ -3932,18 +3932,15 @@ namespace OpenMS::Internal
     std::vector<std::vector<ConstDataProcessingPtr>> dps;
 
     try {
-        // Use a unique_ptr to manage the filtering stream lifecycle
-        std::unique_ptr<boost::iostreams::filtering_ostream> filtered_out;
-        std::ostream* output_stream = &os;
-        
-        // Setup compression if needed
-        if (compress)
-        {
-            filtered_out.reset(new boost::iostreams::filtering_ostream());
-            filtered_out->push(boost::iostreams::gzip_compressor());
-            filtered_out->push(boost::ref(os));
-            output_stream = filtered_out.get();
-        }
+      boost::iostreams::filtering_ostream filter;
+      std::ostream* output_stream = &os;
+      
+      if (compress)
+      {
+          filter.push(boost::iostreams::gzip_compressor());
+          filter.push(os);
+          output_stream = &filter;
+      }
 
         // Write header
         writeHeader_(*output_stream, exp, dps, validator);
@@ -3993,15 +3990,10 @@ namespace OpenMS::Internal
         std::vector<std::pair<std::string, Int64>> empty_offsets;
         MzMLHandlerHelper::writeFooter_(*output_stream, options_, empty_offsets, empty_offsets);
 
-        // Properly close and clean up the compression stream if used
-        if (filtered_out)
-        {
-            filtered_out->flush();
-            boost::iostreams::close(*filtered_out);
-        }
-
         OPENMS_LOG_INFO << stored_spectra << " spectra and " << stored_chromatograms << " chromatograms stored.\n";
         logger_.endProgress(total_items);
+
+       
     }
     catch (const boost::iostreams::gzip_error& e) {
         throw Exception::ConversionError(
@@ -4014,12 +4006,8 @@ namespace OpenMS::Internal
             __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
             String("Stream error while writing to '") + output_file + "': " + e.what());
     }
-    catch (const std::exception& e) {
-        throw Exception::ConversionError(
-            __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-            String("Error while writing to '") + output_file + "': " + e.what());
-    }
 }
+     
     
     
     void MzMLHandler::writeHeader_(std::ostream& os,
