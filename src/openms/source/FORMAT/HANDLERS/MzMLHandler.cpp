@@ -3976,9 +3976,8 @@ namespace OpenMS::Internal
                     std::string native_id = renew_native_ids ? String("spectrum=") + s_idx : exp[s_idx].getNativeID();
                 Int64 offset = counter_filter.characters();
                 spectra_offsets_.emplace_back(native_id, offset + 3);
-
-                    writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
-                    stored_spectra++;
+                writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
+                stored_spectra++;
                 }
                 *output_stream << "\t\t</spectrumList>\n";
             }
@@ -3991,10 +3990,9 @@ namespace OpenMS::Internal
                 {
                     logger_.setProgress(progress++);
                     // Record offset before writing chromatogram
-                std::string native_id = exp.getChromatograms()[c_idx].getNativeID();
-                Int64 offset = counter_filter.characters(); 
-                chromatograms_offsets_.emplace_back(native_id, offset + 3);
-
+                    std::string native_id = exp.getChromatograms()[c_idx].getNativeID();
+                    Int64 offset = counter_filter.characters();
+                    chromatograms_offsets_.emplace_back(native_id, offset + 3);
                     writeChromatogram_(*output_stream, exp.getChromatograms()[c_idx], c_idx, validator);
                     stored_chromatograms++;
                 }
@@ -4002,15 +4000,21 @@ namespace OpenMS::Internal
             }
     
             // Write footer with empty offsets for compressed streams
-            std::vector<std::pair<std::string, Int64>> empty_offsets;
-            MzMLHandlerHelper::writeFooter_(*output_stream, options_, empty_offsets, empty_offsets);
-    
-            if (compress)
-            {
-                filter.reset(); // Ensure all data is flushed and compression is finalized
-                Int64 offset = counter_filter.characters();
-                OPENMS_LOG_INFO << "Compressed output size: " << offset << " bytes.\n";
-            }
+              // flush and close the compressor so that the compressed data block is complete
+        if (compress)
+        {
+            filter.reset();  
+            // now counter_filter.characters() is the total compressed‐stream length
+            OPENMS_LOG_INFO << "Compressed output size: " << counter_filter.characters() << " bytes.\n";
+        }
+
+        // Now write the footer (including a real indexList) uncompressed, against the same os
+        // so that <offset> values match positions inside the compressed blob.
+        MzMLHandlerHelper::writeFooter_(os,
+                                        options_,
+                                        spectra_offsets_,
+                                        chromatograms_offsets_);
+ 
     
             OPENMS_LOG_INFO << stored_spectra << " spectra and " << stored_chromatograms << " chromatograms stored.\n";
             logger_.endProgress(total_items);
