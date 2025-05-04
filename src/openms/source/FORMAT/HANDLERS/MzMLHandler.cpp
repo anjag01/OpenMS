@@ -3932,25 +3932,28 @@ namespace OpenMS::Internal
         UInt stored_chromatograms = 0;
         Internal::MzMLValidator validator(mapping_, cv_);
         std::vector<std::vector<ConstDataProcessingPtr>> dps;
+
+        // Clear previous offsets
+        spectra_offsets_.clear();
+        chromatograms_offsets_.clear();
     
         try
         {
+            // Always use counter filter to track offsets
             boost::iostreams::filtering_ostream filter;
             boost::iostreams::counter counter_filter;
-            std::ostream* output_stream = &os;
-    
+        
+            filter.push(counter_filter);
             if (compress)
             {
-                // First push the counter, then gzip
-                filter.push(counter_filter);
                 filter.push(boost::iostreams::gzip_compressor());
-                filter.push(os);
-                output_stream = &filter;
             }
-    
+            filter.push(os);
+            std::ostream* output_stream = &filter;
+        
             // Write header
             writeHeader_(*output_stream, exp, dps, validator);
-    
+        
             // Write spectra
             if (!exp.empty())
             {
@@ -3964,48 +3967,64 @@ namespace OpenMS::Internal
                         break;
                     }
                 }
-    
                 if (renew_native_ids)
                 {
                     warning(STORE, "Invalid native IDs detected. Using spectrum identifier nativeID format for all spectra.");
                 }
-    
+        
                 for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
                 {
                     logger_.setProgress(progress++);
+                    std::string native_id = renew_native_ids ? ("spectrum=" + std::to_string(s_idx)) : std::string(exp[s_idx].getNativeID().c_str());
+                    Int64 offset = counter_filter.characters();
+                    spectra_offsets_.emplace_back(native_id, offset + 3);
                     writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
                     stored_spectra++;
                 }
                 *output_stream << "\t\t</spectrumList>\n";
             }
-    
-            // Write chromatograms
-            if (!exp.getChromatograms().empty())
+        
+            // Write chromatograms using the same offset-tracking approach
+            const auto& chromatograms = exp.getChromatograms();
+            if (!chromatograms.empty())
             {
-                *output_stream << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-                for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
+                *output_stream << "\t\t<chromatogramList count=\"" << chromatograms.size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+                bool renew_native_ids = false;
+                for (Size c_idx = 0; c_idx < chromatograms.size(); ++c_idx)
+                {
+                    if (!chromatograms[c_idx].getNativeID().has('='))
+                    {
+                        renew_native_ids = true;
+                        break;
+                    }
+                }
+                if (renew_native_ids)
+                {
+                    warning(STORE, "Invalid native IDs detected. Using chromatogram identifier nativeID format for all chromatograms.");
+                }
+        
+                for (Size c_idx = 0; c_idx < chromatograms.size(); ++c_idx)
                 {
                     logger_.setProgress(progress++);
-                    writeChromatogram_(*output_stream, exp.getChromatograms()[c_idx], c_idx, validator);
+                    std::string native_id = renew_native_ids ? ("chromatogram=" + std::to_string(c_idx)) : std::string(chromatograms[c_idx].getNativeID().c_str());
+                    Int64 offset = counter_filter.characters();
+                    chromatograms_offsets_.emplace_back(native_id, offset + 3);
+                    writeChromatogram_(*output_stream, chromatograms[c_idx], c_idx, validator);
                     stored_chromatograms++;
                 }
                 *output_stream << "\t\t</chromatogramList>\n";
             }
-    
-            // Write footer with empty offsets for compressed streams
-            std::vector<std::pair<std::string, Int64>> empty_offsets;
-            MzMLHandlerHelper::writeFooter_(os,
-                                                      options_,
-                                                      spectra_offsets_,
-                                                      chromatograms_offsets_);
-    
+        
+            // Flush and finalize
+            filter.reset();
             if (compress)
             {
-                filter.reset(); // Ensure all data is flushed and compression is finalized
-                Int64 offset = counter_filter.characters();
-                OPENMS_LOG_INFO << "Compressed output size: " << offset << " bytes.\n";
+                OPENMS_LOG_INFO << "Compressed output size: " << counter_filter.characters() << " bytes.\n";
             }
-    
+        
+            // Write footer with offsets
+            MzMLHandlerHelper::writeFooter_(os, options_, spectra_offsets_, chromatograms_offsets_);
+        
             OPENMS_LOG_INFO << stored_spectra << " spectra and " << stored_chromatograms << " chromatograms stored.\n";
             logger_.endProgress(total_items);
         }
@@ -4022,7 +4041,7 @@ namespace OpenMS::Internal
                 __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
                 String("Stream error while writing to '") + output_file + "': " + e.what());
         }
-    }
+      }
         
     
     void MzMLHandler::writeHeader_(std::ostream& os,
