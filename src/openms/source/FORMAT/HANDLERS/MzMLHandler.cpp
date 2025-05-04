@@ -3955,8 +3955,19 @@ namespace OpenMS::Internal
     
             // Write header
             writeHeader_(*output_stream, exp, dps, validator);
-    
-            // Write spectra
+
+          // Set mode flags for downstream functions
+compress_mode_ = compress;
+if (compress && options_.getWriteIndex())
+{
+    counter_ptr_ = &counter_filter;
+}
+else
+{
+    counter_ptr_ = nullptr;
+}
+
+    // Write spectra
             if (!exp.empty())
             {
                 *output_stream << "\t\t<spectrumList count=\"" << exp.size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
@@ -5014,8 +5025,16 @@ if (compress_mode_)
 }
 else
 {
-  offset = static_cast<Int64>(os.tellp());
+  std::streampos pos = os.tellp();
+  if (pos == -1)
+  {
+    throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+      "Failed to get output stream position (uncompressed mode).");
+  }
+  offset = static_cast<Int64>(pos);
 }
+
+
 spectra_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
 
 
@@ -5600,19 +5619,25 @@ void MzMLHandler::writeChromatogram_(std::ostream& os,
   
   // compute offset 
   Int64 offset = 0;
-if (compress_mode_)
-{
-  if (!counter_ptr_)
+  if (compress_mode_)
   {
-    throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-      "Compressed mode active but counter filter not available for offset calculation.");
+    if (!counter_ptr_)
+    {
+      throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+        "Compressed mode active but counter filter not available for offset calculation.");
+    }
+    offset = counter_ptr_->characters();
   }
-  offset = counter_ptr_->characters();
-}
-else
-{
-  offset = static_cast<Int64>(os.tellp());
-}
+  else
+  {
+    std::streampos pos = os.tellp();
+    if (pos == -1)
+    {
+      throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+        "Failed to get output stream position (uncompressed mode).");
+    }
+    offset = static_cast<Int64>(pos);
+  }  
 
   chromatograms_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
 
