@@ -1237,7 +1237,7 @@ START_SECTION(void transform(const String& filename_in, Interfaces::IMSDataConsu
   TICConsumer consumer;
   MzMLFile mzml;
   PeakMap map;
-  String in = OPENMS_GET_TEST_DATA_PATH("MzMLFile1.mzML");
+  String in = OPENMS_GET_TEST_DATA_PATH("MzMLFile_1.mzML");
 
   PeakFileOptions opt = mzml.getOptions();
   opt.setFillData(true); // whether to actually load any data

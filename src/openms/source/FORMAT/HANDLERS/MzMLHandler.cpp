@@ -3913,6 +3913,7 @@ namespace OpenMS::Internal
       os << "\t\t\t\t\t\t</isolationWindow>\n";
       os << "\t\t\t\t\t</product>\n";
     }
+
     void MzMLHandler::writeTo(std::ostream& os)
     {
         std::string output_file = file_;
@@ -3920,7 +3921,7 @@ namespace OpenMS::Internal
         // Case-insensitive check for compression
         String filename_lower = output_file;
         filename_lower.toLower();
-        const bool compress = !filename_lower.empty() && filename_lower.hasSuffix(".gz");
+        const bool compress = filename_lower.hasSuffix(".gz");
     
         // Prepare common variables
         const MapType& exp = *(cexp_);
@@ -3985,7 +3986,7 @@ namespace OpenMS::Internal
                     logger_.setProgress(progress++);
                     
                     // Store the offset before writing the spectrum if we're indexing
-                    if (options_.getWriteIndex() && !compress)
+                    if (options_.getWriteIndex())
                     {
                         Int64 offset = counter_filter.characters();
                         std::string native_id = exp[s_idx].getNativeID();
