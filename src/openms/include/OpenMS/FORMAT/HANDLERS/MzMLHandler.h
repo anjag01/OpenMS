@@ -195,7 +195,7 @@ protected:
       typedef MzMLHandlerHelper::BinaryData BinaryData;
 
       bool compress_mode_ = false;
-      boost::iostreams::counter* counter_ptr_ = nullptr;
+      boost::iostreams::counter* counter_ptr_ = nullptr; 
 
 
       /**@name Helper functions for storing data in memory

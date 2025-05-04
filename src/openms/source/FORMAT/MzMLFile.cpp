@@ -247,6 +247,7 @@ void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
   }
 
   // Debug: Write output to a file for inspection
+  #ifdef DEBUG_MZML
   const std::string debug_filename = "debug_mzml_output.xml"; // or dynamically derive filename
   if (hasGzExtension(debug_filename))
   {
@@ -258,13 +259,10 @@ void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
     debug_out << output;
   }
 }
+#endif
+}
 
-  
-  
-
-
-
-  void MzMLFile::transform(const String& filename_in, Interfaces::IMSDataConsumer* consumer, bool skip_full_count, bool skip_first_pass)
+void MzMLFile::transform(const String& filename_in, Interfaces::IMSDataConsumer* consumer, bool skip_full_count, bool skip_first_pass)
   {
     // First pass through the file -> get the meta-data and hand it to the consumer
     if (!skip_first_pass) transformFirstPass_(filename_in, consumer, skip_full_count);
