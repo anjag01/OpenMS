@@ -3914,115 +3914,116 @@ namespace OpenMS::Internal
       os << "\t\t\t\t\t</product>\n";
     }
     void MzMLHandler::writeTo(std::ostream& os)
-{
-    std::string output_file = file_;
-
-    // Determine if compression is requested
-    String filename_lower = output_file;
-    filename_lower.toLower();
-    const bool compress = !filename_lower.empty() && filename_lower.hasSuffix(".gz");
-
-    // Prepare experiment and progress tracking
-    const MapType& exp = *(cexp_);
-    const Size total_items = exp.size() + exp.getChromatograms().size();
-    logger_.startProgress(0, total_items, "storing mzML file");
-    int progress = 0;
-    UInt stored_spectra = 0;
-    UInt stored_chromatograms = 0;
-    Internal::MzMLValidator validator(mapping_, cv_);
-    std::vector<std::vector<ConstDataProcessingPtr>> dps;
-
-    try
     {
-        // Filtering stream setup
-        boost::iostreams::filtering_ostream filter;
-        boost::iostreams::counter counter_filter;
-        std::ostream* output_stream = &os;
-
-        // Compressed output branch: attach counter then compressor
-        if (compress && options_.getWriteIndex())
+        std::string output_file = file_;
+    
+        // Determine if compression is requested
+        String filename_lower = output_file;
+        filename_lower.toLower();
+        const bool compress = !filename_lower.empty() && filename_lower.hasSuffix(".gz");
+    
+        // Prepare experiment and progress tracking
+        const MapType& exp = *(cexp_);
+        const Size total_items = exp.size() + exp.getChromatograms().size();
+        logger_.startProgress(0, total_items, "storing mzML file");
+        int progress = 0;
+        UInt stored_spectra = 0;
+        UInt stored_chromatograms = 0;
+        Internal::MzMLValidator validator(mapping_, cv_);
+        std::vector<std::vector<ConstDataProcessingPtr>> dps;
+    
+        try
         {
-            filter.push(counter_filter);
-            filter.push(boost::iostreams::gzip_compressor());
-            filter.push(os);
-            output_stream = &filter;
-        }
-        // Uncompressed output branch: do not attach counter
-        else if (!compress && options_.getWriteIndex())
-        {
-            // output_stream remains &os
-        }
-
-        // Write header
-        writeHeader_(*output_stream, exp, dps, validator);
-
-        // Write spectra
-        if (!exp.empty())
-        {
-            *output_stream << "\t\t<spectrumList count=\"" << exp.size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-            bool renew_native_ids = false;
-            for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
+            // Filtering stream setup
+            boost::iostreams::filtering_ostream filter;
+            boost::iostreams::counter counter_filter;
+            std::ostream* output_stream = &os;
+    
+            // Compressed output branch: attach counter then compressor
+            if (compress && options_.getWriteIndex())
             {
-                if (!exp[s_idx].getNativeID().has('='))
+                filter.push(counter_filter);
+                filter.push(boost::iostreams::gzip_compressor());
+                filter.push(os);
+                output_stream = &filter;
+            }
+            // Uncompressed output branch: do not attach counter
+            else if (!compress && options_.getWriteIndex())
+            {
+                // output_stream remains &os, so os.tellp() reflects true position
+            }
+    
+            // Write header
+            writeHeader_(*output_stream, exp, dps, validator);
+    
+            // Write spectra
+            if (!exp.empty())
+            {
+                *output_stream << "\t\t<spectrumList count=\"" << exp.size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+                bool renew_native_ids = false;
+                for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
                 {
-                    renew_native_ids = true;
-                    break;
+                    if (!exp[s_idx].getNativeID().has('='))
+                    {
+                        renew_native_ids = true;
+                        break;
+                    }
                 }
-            }
-            if (renew_native_ids)
-            {
-                warning(STORE, "Invalid native IDs detected. Using spectrum identifier nativeID format for all spectra.");
-            }
-            for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
-            {
-                logger_.setProgress(progress++);
-                // compute offset: uncompressed uses tellp(), compressed uses counter
-                Int64 offset = (!compress ? static_cast<Int64>(os.tellp()) : counter_filter.characters());
-                std::string native_id = exp[s_idx].getNativeID();
                 if (renew_native_ids)
                 {
-                    native_id = "scan=" + String(s_idx);
+                    warning(STORE, "Invalid native IDs detected. Using spectrum identifier nativeID format for all spectra.");
                 }
-                if (options_.getWriteIndex())
+                for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
                 {
-                    spectra_offsets_.emplace_back(native_id, offset);
+                    logger_.setProgress(progress++);
+                    // compute offset: uncompressed uses tellp(), compressed uses counter
+                    Int64 offset = (!compress ? static_cast<Int64>(os.tellp()) : counter_filter.characters());
+                    std::string native_id = exp[s_idx].getNativeID();
+                    if (renew_native_ids)
+                    {
+                        native_id = "scan=" + String(s_idx);
+                    }
+                    if (options_.getWriteIndex())
+                    {
+                        spectra_offsets_.emplace_back(native_id, offset);
+                    }
+                    writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
+                    stored_spectra++;
                 }
-                writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
-                stored_spectra++;
+                *output_stream << "\t\t</spectrumList>\n";
             }
-            *output_stream << "\t\t</spectrumList>\n";
-        }
-
-        // Write chromatograms
-        if (!exp.getChromatograms().empty())
-        {
-            *output_stream << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-            for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
+    
+            // Write chromatograms
+            if (!exp.getChromatograms().empty())
             {
-                logger_.setProgress(progress++);
-                Int64 offset = (!compress ? static_cast<Int64>(os.tellp()) : counter_filter.characters());
-                if (options_.getWriteIndex())
+                *output_stream << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+                for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
                 {
-                    chromatograms_offsets_.emplace_back(exp.getChromatograms()[c_idx].getNativeID(), offset);
+                    logger_.setProgress(progress++);
+                    Int64 offset = (!compress ? static_cast<Int64>(os.tellp()) : counter_filter.characters());
+                    if (options_.getWriteIndex())
+                    {
+                        chromatograms_offsets_.emplace_back(exp.getChromatograms()[c_idx].getNativeID(), offset);
+                    }
+                    writeChromatogram_(*output_stream, exp.getChromatograms()[c_idx], c_idx, validator);
+                    stored_chromatograms++;
                 }
-                writeChromatogram_(*output_stream, exp.getChromatograms()[c_idx], c_idx, validator);
-                stored_chromatograms++;
+                *output_stream << "\t\t</chromatogramList>\n";
             }
-            *output_stream << "\t\t</chromatogramList>\n";
-        }
-
-        // Write footer with tracked offsets
-        if (options_.getWriteIndex())
-        {
-            MzMLHandlerHelper::writeFooter_(*output_stream, options_, spectra_offsets_, chromatograms_offsets_);
-        }
-        else
-        {
-            std::vector<std::pair<std::string, Int64>> empty;
-            MzMLHandlerHelper::writeFooter_(*output_stream, options_, empty, empty);
-        }
-
-        // finalize filter if used
+    
+                    // Write footer: only insert real offsets if uncompressed + indexing
+            if (!compress && options_.getWriteIndex())
+            {
+                MzMLHandlerHelper::writeFooter_(*output_stream, options_, spectra_offsets_, chromatograms_offsets_);
+            }
+            else
+            {
+                // compressed or no-index: write empty offsets (no random access)
+                std::vector<std::pair<std::string, Int64>> empty;
+                MzMLHandlerHelper::writeFooter_(*output_stream, options_, empty, empty);
+            }
+    
+             // Finalize filter if used
         if (options_.getWriteIndex() && filter.size() > 0)
         {
             filter.reset();
@@ -4046,6 +4047,7 @@ namespace OpenMS::Internal
     }
 }
 
+    
     
     void MzMLHandler::writeHeader_(std::ostream& os,
                                    const MapType& exp,
