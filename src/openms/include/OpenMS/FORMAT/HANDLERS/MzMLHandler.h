@@ -6,6 +6,7 @@
 // $Authors: Marc Sturm, Chris Bielow, Hannes Roest $
 // --------------------------------------------------------------------------
 
+
 #pragma once
 
 #include <OpenMS/CONCEPT/Helpers.h>
@@ -22,6 +23,7 @@
 #include <OpenMS/FORMAT/OPTIONS/PeakFileOptions.h>
 #include <OpenMS/FORMAT/ControlledVocabulary.h>
 #include <OpenMS/FORMAT/VALIDATORS/SemanticValidator.h>
+#include <boost/iostreams/filter/counter.hpp>
 
 #include <map>
 
@@ -54,6 +56,7 @@ namespace OpenMS
 
   namespace Internal
   {
+    class Tracker;
     class MzMLValidator;
 
 	  typedef PeakMap MapType;
@@ -124,6 +127,7 @@ public:
 
       /// Docu in base class XMLHandler::writeTo
       void writeTo(std::ostream& os) override;
+
 
       //@}
 
@@ -277,10 +281,7 @@ protected:
        * @name Helper functions for writing data
        */
       //@{
-      
-      /// Write the actual content (separated for compressed/uncompressed handling)
-      void writeContent_(std::ostream& os);
-      
+
       /// Write out XML header including (everything up to spectrumList / chromatogramList
       void writeHeader_(std::ostream& os,
                         const MapType& exp,
@@ -294,13 +295,15 @@ protected:
                           Size spec_idx,
                           const Internal::MzMLValidator& validator,
                           bool renew_native_ids,
-                          std::vector<std::vector< ConstDataProcessingPtr > >& dps);
+                          std::vector<std::vector< ConstDataProcessingPtr > >& dps,
+                          Internal::Tracker* tracker);
 
       /// Write out a single chromatogram
       void writeChromatogram_(std::ostream& os,
                               const ChromatogramType& chromatogram,
                               Size chrom_idx,
-                              const Internal::MzMLValidator& validator);
+                              const Internal::MzMLValidator& validator,
+                              Internal::Tracker* tracker);
 
       template <typename ContainerT>
       void writeContainerData_(std::ostream& os, const PeakFileOptions& pf_options_, const ContainerT& container, const String& array_type);
@@ -493,6 +496,7 @@ protected:
 
     //--------------------------------------------------------------------------------
 
+    /// Class to track positions in the output stream
+
   } // namespace Internal
 } // namespace OpenMS
-

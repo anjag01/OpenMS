@@ -46,8 +46,8 @@ configure_file(
 
 #------------------------------------------------------------------------------
 # Find zlib and Boost.Iostreams for gzip support in tests
-find_package(ZLIB   REQUIRED)
-find_package(Boost  REQUIRED COMPONENTS iostreams)
+#find_package(ZLIB   REQUIRED)
+#find_package(Boost  REQUIRED COMPONENTS iostreams)
 
 #------------------------------------------------------------------------------
 # get the test executables
