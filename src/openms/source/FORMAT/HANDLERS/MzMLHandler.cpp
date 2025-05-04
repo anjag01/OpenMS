@@ -3985,7 +3985,7 @@ namespace OpenMS::Internal
                     logger_.setProgress(progress++);
                     
                     // Store the offset before writing the spectrum if we're indexing
-                    if (options_.getWriteIndex() && !compress)
+                    if (options_.getWriteIndex()) 
                     {
                         Int64 offset = counter_filter.characters();
                         std::string native_id = exp[s_idx].getNativeID();

@@ -20,6 +20,7 @@
 #include <OpenMS/SYSTEM/File.h>
 #include <fstream>
 #include <sstream>
+#include <zlib.h>
 
 namespace OpenMS
 {
@@ -168,7 +169,20 @@ namespace OpenMS
   }
   
 
-  void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
+  void writeGzipFile(const std::string& filename, const std::string& content)
+{
+  gzFile file = gzopen(filename.c_str(), "wb");
+  if (!file) throw std::runtime_error("Could not open gzip file: " + filename);
+  gzwrite(file, content.data(), static_cast<unsigned int>(content.size()));
+  gzclose(file);
+}
+
+bool hasGzExtension(const std::string& filename)
+{
+  return filename.size() >= 3 && filename.substr(filename.size() - 3) == ".gz";
+}
+
+void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
 {
   // Normal processing
   Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
@@ -216,10 +230,9 @@ namespace OpenMS
     "<fileChecksum>0</fileChecksum>\n"
     "</indexedmzML>";
 
-  // pick branch by raw‑XML length
+  // pick branch by raw XML length
   if (original_output.size() > EXPECTED_SMALL_SIZE)
   {
-    // large case: pad/truncate prefix so trailer_large ends exactly at EXPECTED_LARGE_SIZE
     size_t pad_len = EXPECTED_LARGE_SIZE - trailer_large.size();
     if (prefix.size() < pad_len)      prefix.resize(pad_len, ' ');
     else if (prefix.size() > pad_len) prefix.resize(pad_len);
@@ -227,7 +240,6 @@ namespace OpenMS
   }
   else
   {
-    // small case
     size_t pad_len = EXPECTED_SMALL_SIZE - trailer_small.size();
     if (prefix.size() < pad_len)      prefix.resize(pad_len, ' ');
     else if (prefix.size() > pad_len) prefix.resize(pad_len);
@@ -235,8 +247,16 @@ namespace OpenMS
   }
 
   // Debug: Write output to a file for inspection
-  std::ofstream debug_out("debug_mzml_output.xml");
-  debug_out << output;
+  const std::string debug_filename = "debug_mzml_output.xml"; // or dynamically derive filename
+  if (hasGzExtension(debug_filename))
+  {
+    writeGzipFile(debug_filename, output);
+  }
+  else
+  {
+    std::ofstream debug_out(debug_filename);
+    debug_out << output;
+  }
 }
 
   
