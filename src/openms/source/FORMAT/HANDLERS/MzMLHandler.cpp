@@ -5003,17 +5003,19 @@ native_id = String("spectrum=") + s;
 }
 
 Int64 offset = 0;
-if (compress_mode_ && counter_ptr_)
+if (compress_mode_)
 {
-  // compressed: how many bytes have passed through the counter so far
+  if (!counter_ptr_)
+  {
+    throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+      "Compressed mode active but counter filter not available for offset calculation.");
+  }
   offset = counter_ptr_->characters();
 }
 else
 {
-  // uncompressed: ask the stream directly
   offset = static_cast<Int64>(os.tellp());
 }
-// if you previously added +3 to line up the '<' of <spectrum>, keep that for uncompressed:
 spectra_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
 
 
@@ -5598,15 +5600,20 @@ void MzMLHandler::writeChromatogram_(std::ostream& os,
   
   // compute offset 
   Int64 offset = 0;
-  if (compress_mode_ && counter_ptr_)
+if (compress_mode_)
+{
+  if (!counter_ptr_)
   {
-    offset = counter_ptr_->characters();
+    throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+      "Compressed mode active but counter filter not available for offset calculation.");
   }
-  else
-  {
-    offset = static_cast<Int64>(os.tellp());
-  }
-  
+  offset = counter_ptr_->characters();
+}
+else
+{
+  offset = static_cast<Int64>(os.tellp());
+}
+
   chromatograms_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
 
 os << "\t\t\t<chromatogram id=\"" << writeXMLEscape(chromatogram.getNativeID()) << "\" index=\"" << c << "\" defaultArrayLength=\"" << chromatogram.size() << "\">" << "\n";
