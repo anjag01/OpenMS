@@ -23,6 +23,13 @@
 #include <OpenMS/FORMAT/OPTIONS/PeakFileOptions.h>
 #include <OpenMS/FORMAT/ControlledVocabulary.h>
 #include <OpenMS/FORMAT/VALIDATORS/SemanticValidator.h>
+#include <vector>
+#include <string>
+#include <utility>
+#include <OpenMS/CONCEPT/Types.h>       // for Int64
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/counter.hpp>
+
 
 #include <map>
 
@@ -186,6 +193,10 @@ protected:
       typedef MSChromatogram ChromatogramType;
 
       typedef MzMLHandlerHelper::BinaryData BinaryData;
+
+      bool compress_mode_ = false;
+      boost::iostreams::counter* counter_ptr_ = nullptr;
+
 
       /**@name Helper functions for storing data in memory
        * @anchor helper_read
