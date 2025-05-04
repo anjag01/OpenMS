@@ -7,7 +7,6 @@
 // --------------------------------------------------------------------------
 
 #include <OpenMS/FORMAT/HANDLERS/MzMLHandler.h>
-
 #include <OpenMS/CONCEPT/Exception.h>
 #include <OpenMS/CONCEPT/LogStream.h>
 #include <OpenMS/CONCEPT/VersionInfo.h>
@@ -20,11 +19,11 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/device/file.hpp>
-#include <boost/iostreams/device/counter.hpp>
 #include <fstream>
 #include <stdexcept>
-
 #include <map>
+#include <boost/iostreams/filter/counter.hpp> 
+
 
 namespace OpenMS::Internal
 {
@@ -45,7 +44,8 @@ namespace OpenMS::Internal
       cexp_ = &exp;
     }
 
-    /// delegated c'tor for the common things
+    
+ /// delegated c'tor for the common things
     MzMLHandler::MzMLHandler(const String& filename, const String& version, const ProgressLogger& logger)
       : XMLHandler(filename, version),
         logger_(logger),
@@ -698,6 +698,8 @@ namespace OpenMS::Internal
       constexpr XMLCh s_external_spectrum_id[] = { 'e','x','t','e','r','n','a','l','S','p','e','c','t','r','u','m','I','D' , 0};
       // constexpr XMLCh s_default_source_file_ref[] = { 'd','e','f','a','u','l','t','S','o','u','r','c','e','F','i','l','e','R','e','f' , 0};
       constexpr XMLCh s_scan_settings_ref[] = { 's','c','a','n','S','e','t','t','i','n','g','s','R','e','f' , 0};
+      
+      
       String tag = sm_.convert(qname);
       open_tags_.push_back(tag);
 
@@ -707,7 +709,7 @@ namespace OpenMS::Internal
         return;
       }
 
-      //determine parent tag
+      // determine parent tag
       String parent_tag;
       if (open_tags_.size() > 1)
       {
@@ -3911,7 +3913,6 @@ namespace OpenMS::Internal
       os << "\t\t\t\t\t\t</isolationWindow>\n";
       os << "\t\t\t\t\t</product>\n";
     }
-
     void MzMLHandler::writeTo(std::ostream& os)
     {
         std::string output_file = file_;
@@ -3919,7 +3920,7 @@ namespace OpenMS::Internal
         // Case-insensitive check for compression
         String filename_lower = output_file;
         filename_lower.toLower();
-        const bool compress = filename_lower.hasSuffix(".gz");
+        const bool compress = !filename_lower.empty() && filename_lower.hasSuffix(".gz");
     
         // Prepare common variables
         const MapType& exp = *(cexp_);
@@ -3936,12 +3937,23 @@ namespace OpenMS::Internal
             boost::iostreams::filtering_ostream filter;
             boost::iostreams::counter counter_filter;
             std::ostream* output_stream = &os;
+            
+            // Store spectrum and chromatogram offsets for indexing
+            std::vector<std::pair<std::string, Int64>> spectra_offsets;
+            std::vector<std::pair<std::string, Int64>> chromatogram_offsets;
     
             if (compress)
             {
                 // First push the counter, then gzip
                 filter.push(counter_filter);
                 filter.push(boost::iostreams::gzip_compressor());
+                filter.push(os);
+                output_stream = &filter;
+            }
+            else if (options_.getWriteIndex())
+            {
+                // For non-compressed output with indexing, use a counter to track positions
+                filter.push(counter_filter);
                 filter.push(os);
                 output_stream = &filter;
             }
@@ -3971,6 +3983,19 @@ namespace OpenMS::Internal
                 for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
                 {
                     logger_.setProgress(progress++);
+                    
+                    // Store the offset before writing the spectrum if we're indexing
+                    if (options_.getWriteIndex() && !compress)
+                    {
+                        Int64 offset = counter_filter.characters();
+                        std::string native_id = exp[s_idx].getNativeID();
+                        if (renew_native_ids)
+                        {
+                            native_id = "scan=" + String(s_idx);
+                        }
+                        spectra_offsets.push_back(std::make_pair(native_id, offset));
+                    }
+                    
                     writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
                     stored_spectra++;
                 }
@@ -3984,15 +4009,31 @@ namespace OpenMS::Internal
                 for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
                 {
                     logger_.setProgress(progress++);
+                    
+                    // Store the offset before writing the chromatogram if we're indexing
+                    if (options_.getWriteIndex() && !compress)
+                    {
+                        Int64 offset = counter_filter.characters();
+                        chromatogram_offsets.push_back(std::make_pair(exp.getChromatograms()[c_idx].getNativeID(), offset));
+                    }
+                    
                     writeChromatogram_(*output_stream, exp.getChromatograms()[c_idx], c_idx, validator);
                     stored_chromatograms++;
                 }
                 *output_stream << "\t\t</chromatogramList>\n";
             }
     
-            // Write footer with empty offsets for compressed streams
-            std::vector<std::pair<std::string, Int64>> empty_offsets;
-            MzMLHandlerHelper::writeFooter_(*output_stream, options_, empty_offsets, empty_offsets);
+            // Use empty offsets for compressed streams or if indexing is disabled
+            if (compress || !options_.getWriteIndex())
+            {
+                std::vector<std::pair<std::string, Int64>> empty_offsets;
+                MzMLHandlerHelper::writeFooter_(*output_stream, options_, empty_offsets, empty_offsets);
+            }
+            else
+            {
+                // Write footer with actual offsets for uncompressed streams with indexing
+                MzMLHandlerHelper::writeFooter_(*output_stream, options_, spectra_offsets, chromatogram_offsets);
+            }
     
             if (compress)
             {
@@ -4007,19 +4048,18 @@ namespace OpenMS::Internal
         catch (const boost::iostreams::gzip_error& e)
         {
             throw Exception::ConversionError(
-                _FILE_, _LINE_, OPENMS_PRETTY_FUNCTION,
+                __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
                 String("GZip compression failed for '") + output_file + "' (error " +
                 String(e.error()) + "): " + e.what());
         }
         catch (const std::ios_base::failure& e)
         {
             throw Exception::ConversionError(
-                _FILE_, _LINE_, OPENMS_PRETTY_FUNCTION,
+                __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
                 String("Stream error while writing to '") + output_file + "': " + e.what());
         }
     }
-
-
+    
     void MzMLHandler::writeHeader_(std::ostream& os,
                                    const MapType& exp,
                                    std::vector<std::vector< ConstDataProcessingPtr > >& dps,
@@ -4973,8 +5013,7 @@ namespace OpenMS::Internal
         native_id = String("spectrum=") + s;
       }
 
-      Int64 offset = 0;
-      spectra_offsets_.emplace_back(native_id, offset + 3);
+    
 
       // IMPORTANT make sure the offset (above) corresponds to the start of the <spectrum tag
       os << "\t\t\t<spectrum id=\"" << writeXMLEscape(native_id) << "\" index=\"" << s << "\" defaultArrayLength=\"" << spec.size() << "\"";
@@ -5553,9 +5592,7 @@ namespace OpenMS::Internal
                                          Size c,
                                          const Internal::MzMLValidator& validator)
     {
-      Int64 offset = 0;
-      chromatograms_offsets_.emplace_back(chromatogram.getNativeID(), offset + 3);
-
+      
       // TODO native id with chromatogram=?? prefix?
       // IMPORTANT make sure the offset (above) corresponds to the start of the <chromatogram tag
       os << "\t\t\t<chromatogram id=\"" << writeXMLEscape(chromatogram.getNativeID()) << "\" index=\"" << c << "\" defaultArrayLength=\"" << chromatogram.size() << "\">" << "\n";

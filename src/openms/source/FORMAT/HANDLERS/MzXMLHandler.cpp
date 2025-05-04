@@ -1097,7 +1097,7 @@ namespace OpenMS::Internal
         {
           OPENMS_LOG_INFO << "mzXML: index was not requested, but will be written to maintain MaxQuant compatibility." << std::endl;
         }
-        std::ostream::pos_type index_offset = os.tellp();
+        std::ostream::pos_type index_offset = 0;
         os << "<index name = \"scan\" >\n";
         for (Size i = 0; i < scan_index_positions.size(); ++i)
         {
