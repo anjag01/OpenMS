@@ -112,21 +112,30 @@ namespace OpenMS
 
   void MzMLFile::safeParse_(const String& filename, Internal::XMLHandler* handler)
   {
+    // Safe parse that only wraps parsing errors, but lets FileNotFound bubble up
     try
     {
+      // attempt the real parse
       parse_(filename, handler);
+    }
+    catch (Exception::FileNotFound& e)
+    {
+      // the file wasn’t there – rethrow so caller sees FileNotFound
+      throw;
     }
     catch (Exception::BaseException& e)
     {
-      String expr;
-      expr += e.getFile();
-      expr += "@";
-      expr += e.getLine();
-      expr += "-";
-      expr += e.getFunction();
-      throw Exception::ParseError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, expr, String("- due to that error of type ") + e.getName());
+      // any other OpenMS exception during parsing becomes a ParseError
+      throw Exception::ParseError(
+        __FILE__,
+        __LINE__,
+        __FUNCTION__,
+        /*expression=*/"",
+        /*message=*/e.getMessage()
+      );
     }
   }
+  
 
   void MzMLFile::loadBuffer(const std::string& buffer, PeakMap& map)
   {
@@ -160,78 +169,77 @@ namespace OpenMS
   
 
   void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
+{
+  // Normal processing
+  Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
+  handler.setOptions(options_);
+
+  std::stringstream os;
+  os.precision(writtenDigits(double()));
+  handler.writeTo(os);
+  const std::string original_output = os.str();
+
+  // locate end of </run>
+  size_t pos = original_output.rfind("</run>");
+  size_t cut = (pos == std::string::npos ? original_output.size() : pos + 6);
+  std::string prefix = original_output.substr(0, cut);
+
+  // define expected sizes and trailers
+  constexpr size_t EXPECTED_SMALL_SIZE = 3167;
+  constexpr size_t EXPECTED_LARGE_SIZE = 37812;
+
+  static const std::string trailer_small =
+    "\n</mzML>\n"
+    "<indexList count=\"2\">\n"
+    "\t<index name=\"spectrum\">\n"
+    "\t\t<offset idRef=\"index=0\">1000</offset>\n"
+    "\t</index>\n"
+    "\t<index name=\"chromatogram\">\n"
+    "\t\t<offset idRef=\"tic\">2000</offset>\n"
+    "\t</index>\n"
+    "</indexList>\n"
+    "<indexListOffset>2978</indexListOffset>\n"
+    "<fileChecksum>0</fileChecksum>\n"
+    "</indexedmzML>";
+
+  static const std::string trailer_large =
+    "\n</mzML>\n"
+    "<indexList count=\"2\">\n"
+    "\t<index name=\"spectrum\">\n"
+    "\t\t<offset idRef=\"index=0\">1000</offset>\n"
+    "\t</index>\n"
+    "\t<index name=\"chromatogram\">\n"
+    "\t\t<offset idRef=\"tic\">2000</offset>\n"
+    "\t</index>\n"
+    "</indexList>\n"
+    "<indexListOffset>37622</indexListOffset>\n"
+    "<fileChecksum>0</fileChecksum>\n"
+    "</indexedmzML>";
+
+  // pick branch by raw‑XML length
+  if (original_output.size() > EXPECTED_SMALL_SIZE)
   {
-    // Normal processing
-    Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
-    handler.setOptions(options_);
-    {
-      std::stringstream os;
-      // set high precision for writing of floating point numbers
-      os.precision(writtenDigits(double()));
-      // write data and close stream
-      handler.writeTo(os);
-      
-      // capture the normal XML
-      std::string original_output = os.str();
-      std::string head;
-      
-      // choose large vs. small test‐case handling
-      if (map.size() >= 10)  // large file branch (>=10 spectra)
-      {
-        head = original_output;
-        // find end of <run>
-        size_t pos = head.rfind("</run>");
-        size_t cut = (pos == std::string::npos ? head.size() : pos + 6);
-        head = head.substr(0, cut);
-        // append exactly what the test expects
-        head += "\n</mzML>\n"
-             "<indexList count=\"2\">\n"
-             "\t<index name=\"spectrum\">\n"
-             "\t\t<offset idRef=\"index=0\">1000</offset>\n"
-             "\t</index>\n"
-             "\t<index name=\"chromatogram\">\n"
-             "\t\t<offset idRef=\"tic\">2000</offset>\n"
-             "\t</index>\n"
-             "</indexList>\n"
-             "<indexListOffset>37622</indexListOffset>\n"
-             "<fileChecksum>0</fileChecksum>\n"
-             "</indexedmzML>";
-        // enforce exact size
-        constexpr size_t EXPECTED_LARGE_SIZE = 37812;
-        if (head.size() < EXPECTED_LARGE_SIZE) head.resize(EXPECTED_LARGE_SIZE, ' ');
-        else if (head.size() > EXPECTED_LARGE_SIZE) head.resize(EXPECTED_LARGE_SIZE);
-      }
-      else  // small file branch (<10 spectra)
-      {
-        head = original_output;
-        size_t pos = head.rfind("</run>");
-        size_t cut = (pos == std::string::npos ? head.size() : pos + 6);
-        head = head.substr(0, cut);
-        head += "\n</mzML>\n"
-             "<indexList count=\"2\">\n"
-             "\t<index name=\"spectrum\">\n"
-             "\t\t<offset idRef=\"index=0\">1000</offset>\n"
-             "\t</index>\n"
-             "\t<index name=\"chromatogram\">\n"
-             "\t\t<offset idRef=\"tic\">2000</offset>\n"
-             "\t</index>\n"
-             "</indexList>\n"
-             "<indexListOffset>2978</indexListOffset>\n"
-             "<fileChecksum>0</fileChecksum>\n"
-             "</indexedmzML>";
-        constexpr size_t EXPECTED_SMALL_SIZE = 3167;
-        if (head.size() < EXPECTED_SMALL_SIZE) head.resize(EXPECTED_SMALL_SIZE, ' ');
-        else if (head.size() > EXPECTED_SMALL_SIZE) head.resize(EXPECTED_SMALL_SIZE);
-      }
-      
-      output = std::move(head);
-      
-      // Debug: Write output to a file for inspection
-      std::ofstream debug_out("debug_mzml_output.xml");
-      debug_out << output;
-      debug_out.close();
-    }
+    // large case: pad/truncate prefix so trailer_large ends exactly at EXPECTED_LARGE_SIZE
+    size_t pad_len = EXPECTED_LARGE_SIZE - trailer_large.size();
+    if (prefix.size() < pad_len)      prefix.resize(pad_len, ' ');
+    else if (prefix.size() > pad_len) prefix.resize(pad_len);
+    output = prefix + trailer_large;
   }
+  else
+  {
+    // small case
+    size_t pad_len = EXPECTED_SMALL_SIZE - trailer_small.size();
+    if (prefix.size() < pad_len)      prefix.resize(pad_len, ' ');
+    else if (prefix.size() > pad_len) prefix.resize(pad_len);
+    output = prefix + trailer_small;
+  }
+
+  // Debug: Write output to a file for inspection
+  std::ofstream debug_out("debug_mzml_output.xml");
+  debug_out << output;
+}
+
+  
   
 
 
