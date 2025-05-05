@@ -23,13 +23,14 @@
 #include <OpenMS/FORMAT/OPTIONS/PeakFileOptions.h>
 #include <OpenMS/FORMAT/ControlledVocabulary.h>
 #include <OpenMS/FORMAT/VALIDATORS/SemanticValidator.h>
+#include <vector>
+#include <string>
+#include <utility>
+#include <OpenMS/CONCEPT/Types.h>       // for Int64
+#include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/counter.hpp>
 
-#include <OpenMS/CONCEPT/Types.h>
-#include <iostream>
-#include <string>
-#include <vector>
-#include <utility>
+
 #include <map>
 
 
@@ -61,7 +62,6 @@ namespace OpenMS
 
   namespace Internal
   {
-    
     class MzMLValidator;
 
 	  typedef PeakMap MapType;
@@ -194,6 +194,10 @@ protected:
 
       typedef MzMLHandlerHelper::BinaryData BinaryData;
 
+      bool compress_mode_ = false;
+      boost::iostreams::counter* counter_ptr_ = nullptr; 
+
+
       /**@name Helper functions for storing data in memory
        * @anchor helper_read
        */
@@ -300,15 +304,13 @@ protected:
                           Size spec_idx,
                           const Internal::MzMLValidator& validator,
                           bool renew_native_ids,
-                          std::vector<std::vector< ConstDataProcessingPtr > >& dps
-                          );
+                          std::vector<std::vector< ConstDataProcessingPtr > >& dps);
 
       /// Write out a single chromatogram
       void writeChromatogram_(std::ostream& os,
                               const ChromatogramType& chromatogram,
                               Size chrom_idx,
-                              const Internal::MzMLValidator& validator
-                              );
+                              const Internal::MzMLValidator& validator);
 
       template <typename ContainerT>
       void writeContainerData_(std::ostream& os, const PeakFileOptions& pf_options_, const ContainerT& container, const String& array_type);
@@ -390,6 +392,10 @@ protected:
 
       /// map pointer for writing
       const MapType* cexp_{ nullptr };
+
+      /// The filename we’re writing to
+        String _filename;
+
 
       /// Options that can be set for loading/storing
       PeakFileOptions options_;
