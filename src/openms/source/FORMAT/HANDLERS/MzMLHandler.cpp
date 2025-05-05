@@ -3959,8 +3959,12 @@ namespace OpenMS::Internal
             counter_ptr_ = nullptr;
         }
 
-        // Write header
-        writeHeader_(*output_stream, exp, dps, validator);
+         // Write header with ISO-8859-1 encoding
+         *output_stream << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
+         *output_stream << "<indexedmzML xmlns=\"http://psi.hupo.org/ms/mzml\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://psi.hupo.org/ms/mzML http://psidev.info/files/ms/mzML/xsd/mzML1.1.0_idx.xsd\">\n";
+         *output_stream << "<mzML xmlns=\"http://psi.hupo.org/ms/mzml\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://psi.hupo.org/ms/mzML http://psidev.info/files/ms/mzML/xsd/mzML1.1.0.xsd\" accession=\"\" version=\"1.1.0\">\n";
+         writeHeader_(*output_stream, exp, dps, validator);
+
 
         // Write spectra
         if (!exp.empty())
@@ -4046,7 +4050,8 @@ namespace OpenMS::Internal
         // Finalize filter if used
         if (options_.getWriteIndex() && filter.size() > 0)
         {
-            filter.reset();
+          filter.flush();
+          filter.strict_sync();
         }
 
         OPENMS_LOG_INFO << stored_spectra << " spectra and "
