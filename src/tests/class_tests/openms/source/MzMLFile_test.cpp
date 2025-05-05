@@ -1218,7 +1218,7 @@ START_SECTION([EXTRA])
   MzMLFile mzml;
   mzml.load(OPENMS_GET_TEST_DATA_PATH("ChromatogramExtractor_input.mzML"), exp);
 
-  // Safe with gzip compression
+  // Save with gzip compression
   std::string compressed_file;
   NEW_TMP_FILE_EXT(compressed_file, ".gz");
   mzml.store(compressed_file, exp);
