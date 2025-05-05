@@ -93,7 +93,7 @@ namespace OpenMS
     // TODO writeSpectrum assumes that dps_ has at least one value -> assert
     // this here ...
     Internal::MzMLHandler::writeSpectrum_(ofs_, scpy,
-            spectra_written_++, *validator_, renew_native_ids, dps_);
+            spectra_written_++, *validator_, renew_native_ids, dps_, nullptr);
   }
 
    void MSDataWritingConsumer::consumeChromatogram(ChromatogramType & c)
@@ -135,7 +135,7 @@ namespace OpenMS
       writing_chromatograms_ = true;
     }
     Internal::MzMLHandler::writeChromatogram_(ofs_, ccpy,
-            chromatograms_written_++, *validator_);
+            chromatograms_written_++, *validator_, nullptr);
   }
 
    void MSDataWritingConsumer::addDataProcessing(DataProcessing d)

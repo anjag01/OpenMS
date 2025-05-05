@@ -25,6 +25,11 @@
 #include <OpenMS/FORMAT/VALIDATORS/SemanticValidator.h>
 #include <boost/iostreams/filter/counter.hpp>
 
+#include <OpenMS/CONCEPT/Types.h>
+#include <iostream>
+#include <string>
+#include <vector>
+#include <utility>
 #include <map>
 
 
@@ -56,7 +61,7 @@ namespace OpenMS
 
   namespace Internal
   {
-    class Tracker;
+    
     class MzMLValidator;
 
 	  typedef PeakMap MapType;
@@ -295,15 +300,15 @@ protected:
                           Size spec_idx,
                           const Internal::MzMLValidator& validator,
                           bool renew_native_ids,
-                          std::vector<std::vector< ConstDataProcessingPtr > >& dps,
-                          Internal::Tracker* tracker);
+                          std::vector<std::vector< ConstDataProcessingPtr > >& dps
+                          );
 
       /// Write out a single chromatogram
       void writeChromatogram_(std::ostream& os,
                               const ChromatogramType& chromatogram,
                               Size chrom_idx,
-                              const Internal::MzMLValidator& validator,
-                              Internal::Tracker* tracker);
+                              const Internal::MzMLValidator& validator
+                              );
 
       template <typename ContainerT>
       void writeContainerData_(std::ostream& os, const PeakFileOptions& pf_options_, const ContainerT& container, const String& array_type);
@@ -495,8 +500,6 @@ protected:
     };
 
     //--------------------------------------------------------------------------------
-
-    /// Class to track positions in the output stream
 
   } // namespace Internal
 } // namespace OpenMS
