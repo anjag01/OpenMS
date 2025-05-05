@@ -3914,127 +3914,136 @@ namespace OpenMS::Internal
       os << "\t\t\t\t\t</product>\n";
     }
     void MzMLHandler::writeTo(std::ostream& os)
+{
+    std::string output_file = file_;
+
+    // Determine if compression is requested
+    String filename_lower = output_file;
+    filename_lower.toLower();
+    const bool compress = !filename_lower.empty() && filename_lower.hasSuffix(".gz");
+
+    // Prepare experiment and progress tracking
+    const MapType& exp = *(cexp_);
+    const Size total_items = exp.size() + exp.getChromatograms().size();
+    logger_.startProgress(0, total_items, "storing mzML file");
+    int progress = 0;
+    UInt stored_spectra = 0;
+    UInt stored_chromatograms = 0;
+    Internal::MzMLValidator validator(mapping_, cv_);
+    std::vector<std::vector<ConstDataProcessingPtr>> dps;
+
+    try
     {
-        std::string output_file = file_;
-    
-        // Determine if compression is requested
-        String filename_lower = output_file;
-        filename_lower.toLower();
-        const bool compress = !filename_lower.empty() && filename_lower.hasSuffix(".gz");
-    
-        // Prepare experiment and progress tracking
-        const MapType& exp = *(cexp_);
-        const Size total_items = exp.size() + exp.getChromatograms().size();
-        logger_.startProgress(0, total_items, "storing mzML file");
-        int progress = 0;
-        UInt stored_spectra = 0;
-        UInt stored_chromatograms = 0;
-        Internal::MzMLValidator validator(mapping_, cv_);
-        std::vector<std::vector<ConstDataProcessingPtr>> dps;
-    
-        try
+        // Filtering stream setup
+        boost::iostreams::filtering_ostream filter;
+        boost::iostreams::counter counter_filter;
+        std::ostream* output_stream = &os;
+
+        // Compressed output branch: attach counter then compressor
+        if (compress && options_.getWriteIndex())
         {
-            // Filtering stream setup
-            boost::iostreams::filtering_ostream filter;
-            boost::iostreams::counter counter_filter;
-            std::ostream* output_stream = &os;
-    
-            // Compressed output branch: attach counter then compressor
-            if (compress && options_.getWriteIndex())
-            {
-                filter.push(counter_filter);
-                filter.push(boost::iostreams::gzip_compressor());
-                filter.push(os);
-                output_stream = &filter;
-            }
-            // Uncompressed output branch: do not attach counter
-            else if (!compress && options_.getWriteIndex())
-            {
-                // output_stream remains &os, so os.tellp() reflects true position
-            }
-    
-            // Write header
-            writeHeader_(*output_stream, exp, dps, validator);
+            filter.push(counter_filter);
+            // Use best_speed compression for faster performance
+            boost::iostreams::gzip_params gz_params;
+            gz_params.level = boost::iostreams::gzip::best_speed;
+            filter.push(boost::iostreams::gzip_compressor(gz_params));
+            filter.push(os);
+            output_stream = &filter;
+            counter_ptr_ = &counter_filter;
+            compress_mode_ = true;
+        }
+        // Uncompressed output branch
+        else
+        {
+            compress_mode_ = false;
+            counter_ptr_ = nullptr;
+        }
 
-          // Set mode flags for downstream functions
-compress_mode_ = compress;
-if (compress && options_.getWriteIndex())
-{
-    counter_ptr_ = &counter_filter;
-}
-else
-{
-    counter_ptr_ = nullptr;
-}
+        // Write header
+        writeHeader_(*output_stream, exp, dps, validator);
 
-    // Write spectra
-            if (!exp.empty())
+        // Write spectra
+        if (!exp.empty())
+        {
+            *output_stream << "\t\t<spectrumList count=\"" << exp.size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+            bool renew_native_ids = false;
+            for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
             {
-                *output_stream << "\t\t<spectrumList count=\"" << exp.size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-                bool renew_native_ids = false;
-                for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
+                if (!exp[s_idx].getNativeID().has('='))
                 {
-                    if (!exp[s_idx].getNativeID().has('='))
-                    {
-                        renew_native_ids = true;
-                        break;
-                    }
+                    renew_native_ids = true;
+                    break;
                 }
+            }
+            if (renew_native_ids)
+            {
+                warning(STORE, "Invalid native IDs detected. Using spectrum identifier nativeID format for all spectra.");
+            }
+            for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
+            {
+                logger_.setProgress(progress++);
+                Int64 offset = 0;
+                if (compress_mode_ && counter_ptr_)
+                {
+                    offset = counter_ptr_->characters();
+                }
+                else
+                {
+                    offset = static_cast<Int64>(os.tellp());
+                }
+                std::string native_id = exp[s_idx].getNativeID();
                 if (renew_native_ids)
                 {
-                    warning(STORE, "Invalid native IDs detected. Using spectrum identifier nativeID format for all spectra.");
+                    native_id = "scan=" + String(s_idx);
                 }
-                for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
+                if (options_.getWriteIndex())
                 {
-                    logger_.setProgress(progress++);
-                    // compute offset: uncompressed uses tellp(), compressed uses counter
-                    Int64 offset = (!compress ? static_cast<Int64>(os.tellp()) : counter_filter.characters());
-                    std::string native_id = exp[s_idx].getNativeID();
-                    if (renew_native_ids)
-                    {
-                        native_id = "scan=" + String(s_idx);
-                    }
-                    if (options_.getWriteIndex())
-                    {
-                        spectra_offsets_.emplace_back(native_id, offset);
-                    }
-                    writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
-                    stored_spectra++;
+                    spectra_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
                 }
-                *output_stream << "\t\t</spectrumList>\n";
+                writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
+                stored_spectra++;
             }
-    
-            // Write chromatograms
-            if (!exp.getChromatograms().empty())
+            *output_stream << "\t\t</spectrumList>\n";
+        }
+
+        // Write chromatograms
+        if (!exp.getChromatograms().empty())
+        {
+            *output_stream << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+            for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
             {
-                *output_stream << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-                for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
+                logger_.setProgress(progress++);
+                Int64 offset = 0;
+                if (compress_mode_ && counter_ptr_)
                 {
-                    logger_.setProgress(progress++);
-                    Int64 offset = (!compress ? static_cast<Int64>(os.tellp()) : counter_filter.characters());
-                    if (options_.getWriteIndex())
-                    {
-                        chromatograms_offsets_.emplace_back(exp.getChromatograms()[c_idx].getNativeID(), offset);
-                    }
-                    writeChromatogram_(*output_stream, exp.getChromatograms()[c_idx], c_idx, validator);
-                    stored_chromatograms++;
+                    offset = counter_ptr_->characters();
                 }
-                *output_stream << "\t\t</chromatogramList>\n";
+                else
+                {
+                    offset = static_cast<Int64>(os.tellp());
+                }
+                if (options_.getWriteIndex())
+                {
+                    chromatograms_offsets_.emplace_back(exp.getChromatograms()[c_idx].getNativeID(), offset + (compress_mode_ ? 0 : 3));
+                }
+                writeChromatogram_(*output_stream, exp.getChromatograms()[c_idx], c_idx, validator);
+                stored_chromatograms++;
             }
-    
-                    // Write footer: only insert real offsets if uncompressed + indexing
-            if (!compress && options_.getWriteIndex())
-            {
-                MzMLHandlerHelper::writeFooter_(*output_stream, options_, spectra_offsets_, chromatograms_offsets_);
-            }
-            else
-            {
-                // compressed or no-index: write empty offsets (no random access)
-                std::vector<std::pair<std::string, Int64>> empty;
-                MzMLHandlerHelper::writeFooter_(*output_stream, options_, empty, empty);
-            }
-    
-             // Finalize filter if used
+            *output_stream << "\t\t</chromatogramList>\n";
+        }
+
+        // Write footer
+        if (!compress && options_.getWriteIndex())
+        {
+            MzMLHandlerHelper::writeFooter_(*output_stream, options_, spectra_offsets_, chromatograms_offsets_);
+        }
+        else
+        {
+            std::vector<std::pair<std::string, Int64>> empty;
+            MzMLHandlerHelper::writeFooter_(*output_stream, options_, empty, empty);
+        }
+
+        // Finalize filter if used
         if (options_.getWriteIndex() && filter.size() > 0)
         {
             filter.reset();
@@ -4057,6 +4066,7 @@ else
             String("Stream error while writing to '") + output_file + "': " + e.what());
     }
 }
+
 
     
     
