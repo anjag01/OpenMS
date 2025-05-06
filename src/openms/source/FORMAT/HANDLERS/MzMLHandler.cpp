@@ -3922,6 +3922,8 @@ namespace OpenMS::Internal
         filename_lower.toLower();
         const bool compress = !filename_lower.empty() && filename_lower.hasSuffix(".gz");
     
+        boost::iostreams::gzip_params gz_params;
+        gz_params.level = boost::iostreams::gzip::best_speed;
         // Prepare experiment and progress tracking
         const MapType& exp = *(cexp_);
         const Size total_items = exp.size() + exp.getChromatograms().size();
@@ -3943,7 +3945,7 @@ namespace OpenMS::Internal
             if (compress && options_.getWriteIndex())
             {
                 filter.push(counter_filter);
-                filter.push(boost::iostreams::gzip_compressor());
+                filter.push(boost::iostreams::gzip_compressor(gz_params));
                 filter.push(os);
                 output_stream = &filter;
             }
