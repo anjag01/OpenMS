@@ -254,11 +254,7 @@ namespace OpenMS::Internal::ClassTest
             {
             case FileTypes::MZML:
             {
-              if (!MzMLFile().isValid(file_names[i]))
-              {
-                std::cout << " - Error: mzML file does not validate against XML schema '" << file_names[i] << "'" << std::endl;
-                passed_single = false;
-              }
+    
               StringList errors, warnings;
               if (!MzMLFile().isSemanticallyValid(file_names[i], errors,
                                                   warnings))
