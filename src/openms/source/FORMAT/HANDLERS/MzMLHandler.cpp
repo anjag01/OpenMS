@@ -3921,6 +3921,11 @@ namespace OpenMS::Internal
         String filename_lower = output_file;
         filename_lower.toLower();
         const bool compress = !filename_lower.empty() && filename_lower.hasSuffix(".gz");
+
+        // check for piigz
+        bool pigz_available = (std::system("which pigz > /dev/null 2>&1") == 0);
+
+        const bool try_pigz = compress && !options_.getWriteIndex() && pigz_available;
     
         boost::iostreams::gzip_params gz_params;
         gz_params.level = boost::iostreams::gzip::best_speed;
@@ -3933,42 +3938,55 @@ namespace OpenMS::Internal
         UInt stored_chromatograms = 0;
         Internal::MzMLValidator validator(mapping_, cv_);
         std::vector<std::vector<ConstDataProcessingPtr>> dps;
-    
-        try
-        {
-            // Filtering stream setup
-            boost::iostreams::filtering_ostream filter;
-            boost::iostreams::counter counter_filter;
-            std::ostream* output_stream = &os;
-    
-            // Compressed output branch: attach counter then compressor
+
+        boost::iostreams::filtering_ostream filter;
+        boost::iostreams::counter counter_filter;
+
+        std::ofstream tmp_ofstream;
+        std::string tmp_file;
+
+        std::ostream* output_stream = nullptr;
+try{
+  
+
+if (try_pigz)
+{
+    tmp_file = output_file + ".tmp";
+    tmp_ofstream.open(tmp_file, std::ios::binary);
+    if (!tmp_ofstream.is_open())
+    {
+        throw Exception::FileNotWritable(
+            __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+            "Could not create temporary file for pigz compression: " + tmp_file);
+    }
+    output_stream = &tmp_ofstream;
+}
+    else if (compress && options_.getWriteIndex())
+{
+    filter.push(counter_filter);
+    filter.push(boost::iostreams::gzip_compressor(gz_params));
+    filter.push(os);
+    output_stream = &filter;
+    }
+    else
+    {
+    output_stream = &os;
+    }
+              // Write header
+              writeHeader_(*output_stream, exp, dps, validator);
+              
+              // Set mode flags for downstream functions
+              compress_mode_ = compress;
             if (compress && options_.getWriteIndex())
-            {
-                filter.push(counter_filter);
-                filter.push(boost::iostreams::gzip_compressor(gz_params));
-                filter.push(os);
-                output_stream = &filter;
-            }
-            // Uncompressed output branch: do not attach counter
-            else if (!compress && options_.getWriteIndex())
-            {
-                // output_stream remains &os, so os.tellp() reflects true position
-            }
-    
-            // Write header
-            writeHeader_(*output_stream, exp, dps, validator);
-
-          // Set mode flags for downstream functions
-compress_mode_ = compress;
-if (compress && options_.getWriteIndex())
-{
-    counter_ptr_ = &counter_filter;
-}
-else
-{
-    counter_ptr_ = nullptr;
-}
-
+              {
+                counter_ptr_ = &counter_filter;
+              }
+            else
+              {
+                counter_ptr_ = nullptr;
+              }
+              
+            if (try_pigz)
     // Write spectra
             if (!exp.empty())
             {
@@ -4041,6 +4059,22 @@ else
         {
             filter.reset();
         }
+        if (try_pigz)
+{
+    tmp_ofstream.close();
+    std::string cmd = "pigz -p 4 -c \"" + tmp_file + "\" > \"" + output_file + "\"";
+    int ret = std::system(cmd.c_str());
+    std::remove(tmp_file.c_str());
+
+    if (ret != 0)
+    {
+        throw Exception::ConversionError(
+            __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+            "pigz compression failed with exit code " + String(ret));
+    }
+}
+std::ifstream in_check(tmp_file, std::ios::binary | std::ios::ate);
+  std::cout << "Temporary file size: " << in_check.tellg() << " bytes" << std::endl;
 
         OPENMS_LOG_INFO << stored_spectra << " spectra and "
                         << stored_chromatograms << " chromatograms stored.\n";
