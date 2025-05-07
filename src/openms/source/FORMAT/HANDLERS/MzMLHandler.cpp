@@ -3956,37 +3956,27 @@ namespace OpenMS::Internal
           if (use_pigz)
           {
             OPENMS_LOG_INFO << "Using pigz for compression (parallel gzip)\n";
-            // launch pigz writing to output_file
-            pigz_proc.reset(new bp::child(
-              "pigz", "-c",
-              bp::std_in  < *pigz_in,
-              bp::std_out > output_file    // redirect child’s stdout to file
-            ));
+            //spawn pigz with both ends piped
+            pigz_in  = std::make_unique<bp::opstream>();
+            auto gzip_out = std::make_unique<bp::ipstream>();
+            pigz_proc = std::make_unique<bp::child>(
+            "pigz", "-c",
+            bp::std_in  < *pigz_in,
+            bp::std_out > *gzip_out
+           );
             
-  
-            if (options_.getWriteIndex())
-            {
-              filter.push(counter_filter);
-            }
-            filter.push(*pigz_in);
-            output_stream = &filter;
-  
-            OPENMS_LOG_WARN << "Indexing (offset tracking) is not supported when using pigz compression. Index will not be written.\n";
-            options_.setWriteIndex(false);
-          }
-          else
-          {
-            OPENMS_LOG_INFO << "Using Boost gzip compression\n";
-            if (options_.getWriteIndex())
-            {
-              filter.push(counter_filter);
-            }
-            filter.push(bio::gzip_compressor());
-            filter.push(os);
-            output_stream = &filter;
-          }
-        }
-        // uncompressed + indexing case falls through
+      // set up a filter to count compressed bytes and write them into the .gz file
+           bio::filtering_ostream comp_writer;
+           bio::counter           compressed_counter;
+          comp_writer.push(compressed_counter);
+          comp_writer.push(bio::file_sink(output_file, std::ios::binary));
+
+      // point our XML writer at pigz’s stdin
+        output_stream = pigz_in.get();
+
+  // disable the in‑process index machinery
+         options_.setWriteIndex(false);
+         counter_ptr_ = nullptr;
   
         // Write header
         writeHeader_(*output_stream, exp, dps, validator);
@@ -4080,19 +4070,31 @@ namespace OpenMS::Internal
           MzMLHandlerHelper::writeFooter_(*output_stream, options_, {}, {});
         }
   
-        // Clean up pigz if used
-        if (use_pigz)
-        {
-          output_stream->flush();
-          filter.reset();
-          pigz_in->close();    // signal EOF
-          pigz_proc->wait();   // wait for compression to finish
-        }
+        //close pigz’s stdin
+       output_stream->flush();
+       pigz_in->close();
+
+  //read all compressed bytes from pigz’s stdout into comp_writer
+  //    and record offsets manually
+      const std::size_t buf_size = 524288;
+      std::vector<char> buffer(buf_size);
+      while (gzip_out->good())
+  {
+      gzip_out->read(buffer.data(), buf_size);
+      std::streamsize n = gzip_out->gcount();
+      if (n > 0)
+    {
+       comp_writer.write(buffer.data(), n);
+    }
+  }
+      comp_writer.reset();      // flush & close the file sink
+      pigz_proc->wait();        // reap pigz
+}
         else if (filter.size() > 0)
         {
           filter.reset();
         }
-  
+      }
         OPENMS_LOG_INFO << stored_spectra << " spectra and "
                         << stored_chromatograms << " chromatograms stored.\n";
         logger_.endProgress(total_items);
@@ -5662,6 +5664,7 @@ template void MzMLHandler::writeBinaryDataArray_<double>(std::ostream& os,
                               bool is32bit,
                               String array_type);
 
+
 void MzMLHandler::writeChromatogram_(std::ostream& os,
           const ChromatogramType& chromatogram,
           Size c,
@@ -5816,5 +5819,5 @@ os << "\t\t\t\t\t</binaryDataArray>\n";
 os << "\t\t\t\t</binaryDataArrayList>\n";
 os << "\t\t\t</chromatogram>" << "\n";
 }
-
-} // namespace OpenMS   // namespace Internal
+    }
+ // namespace OpenMS   // namespace Internal
