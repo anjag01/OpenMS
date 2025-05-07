@@ -19,10 +19,15 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/device/file.hpp>
+#include <boost/iostreams/filter/counter.hpp> 
+#include <boost/process.hpp>
+#include <boost/iostreams/device/file_descriptor.hpp>
 #include <fstream>
 #include <stdexcept>
 #include <map>
-#include <boost/iostreams/filter/counter.hpp> 
+
+
+
 
 
 namespace OpenMS::Internal
@@ -3953,49 +3958,50 @@ namespace OpenMS::Internal
             }
 
             if (use_pigz)
-            {
-                OPENMS_LOG_INFO << "Using pigz for compression (parallel gzip)" << std::endl;
-                
-                // Create pipe to pigz command
-                std::string pigz_cmd = "pigz -c > \"" + output_file + "\"";
-                FILE* pigz_pipe = popen(pigz_cmd.c_str(), "w");
-                if (!pigz_pipe)
-                {
-                    throw Exception::ConversionError(
-                        __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-                        String("Failed to open pipe to pigz for file '") + output_file + "'");
-                }
-                
-                // Custom streambuf for the pigz pipe
-                class PipeStreamBuf : public std::streambuf {
-                public:
-                    PipeStreamBuf(FILE* pipe) : pipe_(pipe) {}
-                    ~PipeStreamBuf() override {
-                        if (pipe_) pclose(pipe_);
-                    }
-                protected:
-                    virtual int_type overflow(int_type c) {
-                        if (c != traits_type::eof()) {
-                            if (fputc(c, pipe_) == EOF) {
-                                return traits_type::eof();
-                            }
-                        }
-                        return c;
-                    }
-                    virtual std::streamsize xsputn(const char* s, std::streamsize n) {
-                        return fwrite(s, 1, n, pipe_);
-                    }
-                private:
-                    FILE* pipe_;
-                };
-                
-                pigz_buf.reset(new PipeStreamBuf(pigz_pipe));
-                pigz_stream.reset(new std::ostream(pigz_buf.get()));
-                output_stream = pigz_stream.get();
-                
-                OPENMS_LOG_WARN << "Indexing (offset tracking) is not supported when using pigz compression. Index will not be written." << std::endl;
-                options_.setWriteIndex(false);
-            }
+{
+    OPENMS_LOG_INFO << "Using pigz via Boost.Process for compression (parallel gzip)" << std::endl;
+
+    namespace bp = boost::process;
+    namespace bio = boost::iostreams;
+
+    // Create and store pipe and process
+    auto pipe_stream = std::make_shared<bp::opstream>();
+    auto pigz_proc = std::make_shared<bp::child>(
+        "pigz -c > \"" + output_file + "\"", bp::std_in < *pipe_stream);
+
+    // Save pointers for later cleanup
+    std::shared_ptr<bp::opstream> pigz_pipe_stream = pipe_stream;
+    std::shared_ptr<bp::child> pigz_child = pigz_proc;
+
+    // Build filtering stream: counter + pipe
+    if (options_.getWriteIndex())
+    {
+        filter.push(counter_filter);
+    }
+    filter.push(*pipe_stream);
+    output_stream = &filter;
+
+    // Warn about no indexing
+    if (options_.getWriteIndex())
+    {
+        OPENMS_LOG_WARN << "Indexing (offset tracking) is not supported when using pigz compression. Index will not be written." << std::endl;
+        options_.setWriteIndex(false);
+    }
+
+    auto pigz_cleanup = [pipe_stream = pigz_pipe_stream, 
+      pigz_proc = pigz_child, 
+      filter_copy = &filter]() mutable {
+filter_copy->reset();
+pipe_stream->pipe().close();
+pigz_proc->wait();
+};
+
+  
+
+    // Store for later use (e.g. at end of try block)
+    cleanup_tasks_.emplace_back(pigz_cleanup);
+}
+
             else
             {
                 OPENMS_LOG_INFO << "Using Boost gzip compression" << std::endl;
@@ -4048,7 +4054,7 @@ namespace OpenMS::Internal
             for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
             {
                 logger_.setProgress(progress++);
-                
+
                 // Only calculate offset if we're not using pigz and indexing is enabled
                 Int64 offset = -1;
                 if (options_.getWriteIndex())
@@ -4062,7 +4068,7 @@ namespace OpenMS::Internal
                         offset = counter_filter.characters();
                     }
                 }
-                
+
                 std::string native_id = exp[s_idx].getNativeID();
                 if (renew_native_ids)
                 {
@@ -4085,7 +4091,7 @@ namespace OpenMS::Internal
             for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
             {
                 logger_.setProgress(progress++);
-                
+
                 // Only calculate offset if we're not using pigz and indexing is enabled
                 Int64 offset = -1;
                 if (options_.getWriteIndex())
@@ -4099,7 +4105,7 @@ namespace OpenMS::Internal
                         offset = counter_filter.characters();
                     }
                 }
-                
+
                 if (options_.getWriteIndex() && offset != -1)
                 {
                     chromatograms_offsets_.emplace_back(exp.getChromatograms()[c_idx].getNativeID(), offset);
@@ -4131,6 +4137,11 @@ namespace OpenMS::Internal
         {
             filter.reset();
         }
+        for (const auto& task : cleanup_tasks_)
+        {
+        task();
+        }
+        cleanup_tasks_.clear();
 
         OPENMS_LOG_INFO << stored_spectra << " spectra and "
                       << stored_chromatograms << " chromatograms stored.\n";
@@ -4149,6 +4160,7 @@ namespace OpenMS::Internal
             String("Stream error while writing to '") + output_file + "': " + e.what());
     }
 }
+
 
     
     
@@ -5098,37 +5110,37 @@ namespace OpenMS::Internal
       bool renew_native_ids,
       std::vector<std::vector< ConstDataProcessingPtr > >& dps)
 {
-//native id
+// Native ID
 String native_id = spec.getNativeID();
 if (renew_native_ids)
 {
-native_id = String("spectrum=") + s;
+    native_id = String("spectrum=") + s;
 }
 
-Int64 offset = 0;
-if (compress_mode_)
+if (options_.getWriteIndex())
 {
-  if (!counter_ptr_)
-  {
-    throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-      "Compressed mode active but counter filter not available for offset calculation.");
-  }
-  offset = counter_ptr_->characters();
+    Int64 offset = 0;
+    if (compress_mode_)
+    {
+        if (!counter_ptr_)
+        {
+            throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                "Compressed mode active but counter filter not available for offset calculation.");
+        }
+        offset = counter_ptr_->characters();
+    }
+    else
+    {
+        std::streampos pos = os.tellp();
+        if (pos == -1)
+        {
+            throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                "Failed to get output stream position (uncompressed mode).");
+        }
+        offset = static_cast<Int64>(pos);
+    }
+    spectra_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
 }
-else
-{
-  std::streampos pos = os.tellp();
-  if (pos == -1)
-  {
-    throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-      "Failed to get output stream position (uncompressed mode).");
-  }
-  offset = static_cast<Int64>(pos);
-}
-
-
-spectra_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
-
 
 // IMPORTANT make sure the offset (above) corresponds to the start of the <spectrum tag
 os << "\t\t\t<spectrum id=\"" << writeXMLEscape(native_id) << "\" index=\"" << s << "\" defaultArrayLength=\"" << spec.size() << "\"";
@@ -5707,34 +5719,36 @@ void MzMLHandler::writeChromatogram_(std::ostream& os,
           Size c,
           const Internal::MzMLValidator& validator)
 {
- String native_id = chromatogram.getNativeID();
+  String native_id = chromatogram.getNativeID();
+
+  if (options_.getWriteIndex())
+  {
+      // compute offset 
+      Int64 offset = 0;
+      if (compress_mode_)
+      {
+          if (!counter_ptr_)
+          {
+              throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                  "Compressed mode active but counter filter not available for offset calculation.");
+          }
+          offset = counter_ptr_->characters();
+      }
+      else
+      {
+          std::streampos pos = os.tellp();
+          if (pos == -1)
+          {
+              throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                  "Failed to get output stream position (uncompressed mode).");
+          }
+          offset = static_cast<Int64>(pos);
+      }  
   
-  // compute offset 
-  Int64 offset = 0;
-  if (compress_mode_)
-  {
-    if (!counter_ptr_)
-    {
-      throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-        "Compressed mode active but counter filter not available for offset calculation.");
-    }
-    offset = counter_ptr_->characters();
+      chromatograms_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
   }
-  else
-  {
-    std::streampos pos = os.tellp();
-    if (pos == -1)
-    {
-      throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-        "Failed to get output stream position (uncompressed mode).");
-    }
-    offset = static_cast<Int64>(pos);
-  }  
-
-  chromatograms_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
-
-os << "\t\t\t<chromatogram id=\"" << writeXMLEscape(chromatogram.getNativeID()) << "\" index=\"" << c << "\" defaultArrayLength=\"" << chromatogram.size() << "\">" << "\n";
-
+  
+  os << "\t\t\t<chromatogram id=\"" << writeXMLEscape(chromatogram.getNativeID()) << "\" index=\"" << c << "\" defaultArrayLength=\"" << chromatogram.size() << "\">" << "\n";
 // write cvParams (chromatogram type)
 if (chromatogram.getChromatogramType() == ChromatogramSettings::MASS_CHROMATOGRAM)
 {

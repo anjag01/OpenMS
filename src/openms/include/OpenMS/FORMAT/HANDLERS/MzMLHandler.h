@@ -180,6 +180,8 @@ public:
 
 protected:
 
+      mutable std::vector<std::function<void()>> cleanup_tasks_;
+
       /// delegated constructor for the two public versions
       MzMLHandler(const String& filename, const String& version, const ProgressLogger& logger);
 
