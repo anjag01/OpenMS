@@ -3957,11 +3957,12 @@ namespace OpenMS::Internal
           {
             OPENMS_LOG_INFO << "Using pigz for compression (parallel gzip)\n";
             // launch pigz writing to output_file
-            pigz_in .reset(new bp::opstream());
             pigz_proc.reset(new bp::child(
-              "pigz -c > \"" + output_file + "\"",
-              bp::std_in < *pigz_in
+              "pigz", "-c",
+              bp::std_in  < *pigz_in,
+              bp::std_out > output_file    // redirect child’s stdout to file
             ));
+            
   
             if (options_.getWriteIndex())
             {
