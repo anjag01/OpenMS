@@ -3943,24 +3943,34 @@ namespace OpenMS::Internal
           std::ostream* output_stream = &os;
           std::unique_ptr<bp::opstream> pigz_pipe;
           std::unique_ptr<bp::child> pigz_process;
+          std::unique_ptr<std::ofstream> file_stream;
 
         // decide compression
         if (compress)
         {
           if (!output_file.empty())
-          {
-          int pigz_check = system("pigz --version > /dev/null 2>&1");
+            {
+                int pigz_check = system("pigz --version > /dev/null 2>&1");
                 if (pigz_check == 0)
                 {
+                    OPENMS_LOG_INFO << "Using pigz for compression (parallel gzip)" << std::endl;
 
-            OPENMS_LOG_INFO << "Using pigz for compression (parallel gzip)\n";
+                    // Open the output file directly
+                    file_stream = std::make_unique<std::ofstream>(output_file, std::ios::binary);
+                    if (!file_stream->is_open())
+                    {
+                        throw Exception::ConversionError(
+                            __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                            String("Failed to open output file '") + output_file + "'");
+                    }
             
             // Set up pigz process
             pigz_pipe = std::make_unique<bp::opstream>();
             pigz_process = std::make_unique<bp::child>(
-                "pigz > \"" + output_file + "\"",
-                bp::std_in < *pigz_pipe
-            );
+              "pigz -c",
+              bp::std_in < *pigz_pipe,
+              (bp::std_out > *file_stream)
+          );
             
      // Set up filtering_ostream with counter
      if (options_.getWriteIndex())
@@ -4119,6 +4129,7 @@ else
             output_stream->flush();
             filter.reset();
             pigz_pipe->pipe().close(); // Signal EOF to pigz
+            file_stream->close(); // Close the output file
             pigz_process->wait(); // Wait for pigz to finish
             if (pigz_process->exit_code() != 0)
             {
