@@ -3934,34 +3934,99 @@ namespace OpenMS::Internal
 
     try
     {
-        // Filtering stream setup
+        // Variables for stream handling
         boost::iostreams::filtering_ostream filter;
         boost::iostreams::counter counter_filter;
         std::ostream* output_stream = &os;
+        bool use_pigz = false;
+        std::unique_ptr<std::streambuf> pigz_buf;
+        std::unique_ptr<std::ostream> pigz_stream;
 
-        // Compressed output branch: attach counter then compressor
-        if (compress && options_.getWriteIndex())
+        // Compressed output branch
+        if (compress)
         {
-            filter.push(counter_filter);
-            // Use best_speed compression for faster performance
-            boost::iostreams::gzip_params gz_params;
-            gz_params.level = boost::iostreams::gzip::best_speed;
-            filter.push(boost::iostreams::gzip_compressor(gz_params));
-            filter.push(os);
-            output_stream = &filter;
-            counter_ptr_ = &counter_filter;
-            compress_mode_ = true;
+            // Check if pigz is available and we're writing to a file (not generic stream)
+            if (!output_file.empty())
+            {
+                int pigz_check = system("pigz --version > /dev/null 2>&1");
+                use_pigz = (pigz_check == 0);
+            }
+
+            if (use_pigz)
+            {
+                OPENMS_LOG_INFO << "Using pigz for compression (parallel gzip)" << std::endl;
+
+                // Create pipe to pigz command
+                std::string pigz_cmd = "pigz -c > \"" + output_file + "\"";
+                FILE* pigz_pipe = popen(pigz_cmd.c_str(), "w");
+                if (!pigz_pipe)
+                {
+                    throw Exception::ConversionError(
+                        __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                        String("Failed to open pipe to pigz for file '") + output_file + "'");
+                }
+
+                // Custom streambuf for the pigz pipe
+                class PipeStreamBuf : public std::streambuf {
+                public:
+                    PipeStreamBuf(FILE* pipe) : pipe_(pipe) {}
+                    ~PipeStreamBuf() override {
+                        if (pipe_) pclose(pipe_);
+                    }
+                protected:
+                    virtual int_type overflow(int_type c) {
+                        if (c != traits_type::eof()) {
+                            if (fputc(c, pipe_) == EOF) {
+                                return traits_type::eof();
+                            }
+                        }
+                        return c;
+                    }
+                    virtual std::streamsize xsputn(const char* s, std::streamsize n) {
+                        return fwrite(s, 1, n, pipe_);
+                    }
+                private:
+                    FILE* pipe_;
+                };
+
+                pigz_buf.reset(new PipeStreamBuf(pigz_pipe));
+                pigz_stream.reset(new std::ostream(pigz_buf.get()));
+                output_stream = pigz_stream.get();
+
+                OPENMS_LOG_WARN << "Indexing (offset tracking) is not supported when using pigz compression. Index will not be written." << std::endl;
+                options_.setWriteIndex(false);
+            }
+            else
+            {
+                OPENMS_LOG_INFO << "Using Boost gzip compression" << std::endl;
+                if (options_.getWriteIndex())
+                {
+                    filter.push(counter_filter);
+                }
+                filter.push(boost::iostreams::gzip_compressor());
+                filter.push(os);
+                output_stream = &filter;
+            }
         }
         // Uncompressed output branch
-        else
+        else if (!compress && options_.getWriteIndex())
         {
-            compress_mode_ = false;
-            counter_ptr_ = nullptr;
+            // output_stream remains &os, so os.tellp() reflects true position
         }
 
-         // Write header
-         writeHeader_(*output_stream, exp, dps, validator);
+        // Write header
+        writeHeader_(*output_stream, exp, dps, validator);
 
+        // Set mode flags for downstream functions
+        compress_mode_ = compress;
+        if (compress && options_.getWriteIndex() && !use_pigz)
+        {
+            counter_ptr_ = &counter_filter;
+        }
+        else
+        {
+            counter_ptr_ = nullptr;
+        }
 
         // Write spectra
         if (!exp.empty())
@@ -3983,23 +4048,29 @@ namespace OpenMS::Internal
             for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
             {
                 logger_.setProgress(progress++);
-                Int64 offset = 0;
-                if (compress_mode_ && counter_ptr_)
+
+                // Only calculate offset if we're not using pigz and indexing is enabled
+                Int64 offset = -1;
+                if (options_.getWriteIndex())
                 {
-                    offset = counter_ptr_->characters();
+                    if (!compress)
+                    {
+                        offset = static_cast<Int64>(os.tellp());
+                    }
+                    else if (!use_pigz)
+                    {
+                        offset = counter_filter.characters();
+                    }
                 }
-                else
-                {
-                    offset = static_cast<Int64>(os.tellp());
-                }
+
                 std::string native_id = exp[s_idx].getNativeID();
                 if (renew_native_ids)
                 {
                     native_id = "scan=" + String(s_idx);
                 }
-                if (options_.getWriteIndex())
+                if (options_.getWriteIndex() && offset != -1)
                 {
-                    spectra_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
+                    spectra_offsets_.emplace_back(native_id, offset);
                 }
                 writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
                 stored_spectra++;
@@ -4014,18 +4085,24 @@ namespace OpenMS::Internal
             for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
             {
                 logger_.setProgress(progress++);
-                Int64 offset = 0;
-                if (compress_mode_ && counter_ptr_)
-                {
-                    offset = counter_ptr_->characters();
-                }
-                else
-                {
-                    offset = static_cast<Int64>(os.tellp());
-                }
+
+                // Only calculate offset if we're not using pigz and indexing is enabled
+                Int64 offset = -1;
                 if (options_.getWriteIndex())
                 {
-                    chromatograms_offsets_.emplace_back(exp.getChromatograms()[c_idx].getNativeID(), offset + (compress_mode_ ? 0 : 3));
+                    if (!compress)
+                    {
+                        offset = static_cast<Int64>(os.tellp());
+                    }
+                    else if (!use_pigz)
+                    {
+                        offset = counter_filter.characters();
+                    }
+                }
+
+                if (options_.getWriteIndex() && offset != -1)
+                {
+                    chromatograms_offsets_.emplace_back(exp.getChromatograms()[c_idx].getNativeID(), offset);
                 }
                 writeChromatogram_(*output_stream, exp.getChromatograms()[c_idx], c_idx, validator);
                 stored_chromatograms++;
@@ -4034,7 +4111,7 @@ namespace OpenMS::Internal
         }
 
         // Write footer
-        if (!compress && options_.getWriteIndex())
+        if (options_.getWriteIndex() && (!compress || (compress && !use_pigz)))
         {
             MzMLHandlerHelper::writeFooter_(*output_stream, options_, spectra_offsets_, chromatograms_offsets_);
         }
@@ -4044,14 +4121,19 @@ namespace OpenMS::Internal
             MzMLHandlerHelper::writeFooter_(*output_stream, options_, empty, empty);
         }
 
-        // Finalize filter if used
-        if (options_.getWriteIndex() && filter.size() > 0)
+        // Clean up
+        if (use_pigz)
         {
-          filter.reset();
+            output_stream->flush();
+            pigz_stream.reset(); // This will also close the pipe through the streambuf destructor
+        }
+        else if (filter.size() > 0)
+        {
+            filter.reset();
         }
 
         OPENMS_LOG_INFO << stored_spectra << " spectra and "
-                        << stored_chromatograms << " chromatograms stored.\n";
+                      << stored_chromatograms << " chromatograms stored.\n";
         logger_.endProgress(total_items);
     }
     catch (const boost::iostreams::gzip_error& e)
@@ -5017,37 +5099,37 @@ namespace OpenMS::Internal
       bool renew_native_ids,
       std::vector<std::vector< ConstDataProcessingPtr > >& dps)
 {
-//native id
+// Native ID
 String native_id = spec.getNativeID();
 if (renew_native_ids)
 {
-native_id = String("spectrum=") + s;
+    native_id = String("spectrum=") + s;
 }
 
-Int64 offset = 0;
-if (compress_mode_)
+if (options_.getWriteIndex())
 {
-  if (!counter_ptr_)
-  {
-    throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-      "Compressed mode active but counter filter not available for offset calculation.");
-  }
-  offset = counter_ptr_->characters();
+    Int64 offset = 0;
+    if (compress_mode_)
+    {
+        if (!counter_ptr_)
+        {
+            throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                "Compressed mode active but counter filter not available for offset calculation.");
+        }
+        offset = counter_ptr_->characters();
+    }
+    else
+    {
+        std::streampos pos = os.tellp();
+        if (pos == -1)
+        {
+            throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                "Failed to get output stream position (uncompressed mode).");
+        }
+        offset = static_cast<Int64>(pos);
+    }
+    spectra_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
 }
-else
-{
-  std::streampos pos = os.tellp();
-  if (pos == -1)
-  {
-    throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-      "Failed to get output stream position (uncompressed mode).");
-  }
-  offset = static_cast<Int64>(pos);
-}
-
-
-spectra_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
-
 
 // IMPORTANT make sure the offset (above) corresponds to the start of the <spectrum tag
 os << "\t\t\t<spectrum id=\"" << writeXMLEscape(native_id) << "\" index=\"" << s << "\" defaultArrayLength=\"" << spec.size() << "\"";
@@ -5626,34 +5708,36 @@ void MzMLHandler::writeChromatogram_(std::ostream& os,
           Size c,
           const Internal::MzMLValidator& validator)
 {
- String native_id = chromatogram.getNativeID();
+  String native_id = chromatogram.getNativeID();
+
+  if (options_.getWriteIndex())
+  {
+      // compute offset 
+      Int64 offset = 0;
+      if (compress_mode_)
+      {
+          if (!counter_ptr_)
+          {
+              throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                  "Compressed mode active but counter filter not available for offset calculation.");
+          }
+          offset = counter_ptr_->characters();
+      }
+      else
+      {
+          std::streampos pos = os.tellp();
+          if (pos == -1)
+          {
+              throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+                  "Failed to get output stream position (uncompressed mode).");
+          }
+          offset = static_cast<Int64>(pos);
+      }  
   
-  // compute offset 
-  Int64 offset = 0;
-  if (compress_mode_)
-  {
-    if (!counter_ptr_)
-    {
-      throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-        "Compressed mode active but counter filter not available for offset calculation.");
-    }
-    offset = counter_ptr_->characters();
+      chromatograms_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
   }
-  else
-  {
-    std::streampos pos = os.tellp();
-    if (pos == -1)
-    {
-      throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-        "Failed to get output stream position (uncompressed mode).");
-    }
-    offset = static_cast<Int64>(pos);
-  }  
-
-  chromatograms_offsets_.emplace_back(native_id, offset + (compress_mode_ ? 0 : 3));
-
-os << "\t\t\t<chromatogram id=\"" << writeXMLEscape(chromatogram.getNativeID()) << "\" index=\"" << c << "\" defaultArrayLength=\"" << chromatogram.size() << "\">" << "\n";
-
+  
+  os << "\t\t\t<chromatogram id=\"" << writeXMLEscape(chromatogram.getNativeID()) << "\" index=\"" << c << "\" defaultArrayLength=\"" << chromatogram.size() << "\">" << "\n";
 // write cvParams (chromatogram type)
 if (chromatogram.getChromatogramType() == ChromatogramSettings::MASS_CHROMATOGRAM)
 {
