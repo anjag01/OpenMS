@@ -3924,7 +3924,11 @@ namespace OpenMS::Internal
       std::string output_file = file_;
       // Determine if compression is requested
       String filename_lower = output_file; filename_lower.toLower();
-      const bool compress = !filename_lower.empty() && filename_lower.hasSuffix(".gz");
+      const bool compress = filename_lower.hasSuffix(".gz");
+
+
+      boost::iostreams::gzip_params gz_params;
+      gz_params.level = boost::iostreams::gzip::best_speed;
   
       // Prepare experiment and progress tracking
       const MapType& exp = *cexp_;
@@ -3997,7 +4001,7 @@ namespace OpenMS::Internal
      {
          filter.push(counter_filter);
      }
-     filter.push(bio::gzip_compressor());
+     filter.push(bio::gzip_compressor(gz_params));
      filter.push(os);
      output_stream = &filter;
      counter_ptr_ = options_.getWriteIndex() ? &counter_filter : nullptr;
@@ -4011,7 +4015,7 @@ namespace OpenMS::Internal
  {
      filter.push(counter_filter);
  }
-     filter.push(bio::gzip_compressor());
+     filter.push(bio::gzip_compressor(gz_params));
      filter.push(os);
      output_stream = &filter;
      counter_ptr_ = options_.getWriteIndex() ? &counter_filter : nullptr;
