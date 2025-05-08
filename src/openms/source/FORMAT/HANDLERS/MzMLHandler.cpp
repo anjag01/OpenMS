@@ -4130,7 +4130,6 @@ namespace OpenMS::Internal
         output_stream->flush();
         filter.reset();
         pigz_pipe->pipe().close(); // Signal EOF to pigz
-        file_stream->close(); // Close the output file
         pigz_process->wait(); // Wait for pigz to finish
         if (pigz_process->exit_code() != 0)
         {
@@ -4143,10 +4142,10 @@ namespace OpenMS::Internal
     {
         filter.reset();
     }
-
+    logger_.endProgress(total_items);
     OPENMS_LOG_INFO << stored_spectra << " spectra and "
                     << stored_chromatograms << " chromatograms stored.\n";
-    logger_.endProgress(total_items);
+    
 }
     catch (const boost::iostreams::gzip_error& e)
     {
