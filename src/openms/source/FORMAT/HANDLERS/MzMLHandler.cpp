@@ -25,6 +25,7 @@
 #include <boost/iostreams/filter/counter.hpp> 
 #include <boost/process.hpp>
 #include <iostream>
+#include <omp.h>
 
 
 namespace OpenMS::Internal
@@ -3947,6 +3948,7 @@ namespace OpenMS::Internal
             std::unique_ptr<bp::opstream> pigz_pipe;
             std::unique_ptr<bp::child> pigz_process;
             std::unique_ptr<std::ofstream> file_stream;
+            
     
             // decide compression
             if (compress)
@@ -3978,14 +3980,16 @@ namespace OpenMS::Internal
     if (pigz_available)
     {
         OPENMS_LOG_INFO << "Using pigz for compression (parallel gzip)" << std::endl;
+        int max_threads = omp_get_max_threads();
+            OPENMS_LOG_INFO << "Setting pigz to use " << max_threads << " threads" << std::endl;
 
         // Set up pigz process - write directly to output file
         pigz_pipe = std::make_unique<bp::opstream>();
         pigz_process = std::make_unique<bp::child>(
-            "pigz -c",
-            bp::std_in < *pigz_pipe,
-            bp::std_out > output_file  // Direkt den Dateinamen verwenden
-        );
+          "pigz -c -p " + std::to_string(max_threads), // Pass max_threads to pigz
+           bp::std_in < *pigz_pipe,
+           bp::std_out > boost::filesystem::path(output_file)
+);
         
                     // Set up filtering_ostream with counter
                     if (options_.getWriteIndex())
