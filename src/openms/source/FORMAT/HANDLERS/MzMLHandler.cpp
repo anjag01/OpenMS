@@ -92,6 +92,7 @@ namespace OpenMS::Internal
       return load_detail_;
     }
 
+    
     /// handler which support partial loading, implement this method
     void MzMLHandler::setLoadDetail(const XMLHandler::LOADDETAIL d)
     {
@@ -3925,7 +3926,10 @@ namespace OpenMS::Internal
 
         boost::iostreams::gzip_params gz_params;
         gz_params.level = boost::iostreams::gzip::best_speed;
-      
+        // INFO : do not try to be smart and skip empty spectra or
+        // chromatograms. There can be very good reasons for this (e.g. if the
+        // meta information needs to be stored here but the actual data is
+        // stored somewhere else).
         // Prepare experiment and progress tracking
         const MapType& exp = *cexp_;
         Size total_items = exp.size() + exp.getChromatograms().size();
@@ -3987,23 +3991,13 @@ namespace OpenMS::Internal
            bp::std_out > boost::filesystem::path(output_file)
 );
         
-                    // Set up filtering_ostream with counter
-                    if (options_.getWriteIndex())
-                    {
-                        filter.push(counter_filter);
-                    }
-                    filter.push(*pigz_pipe);
-                    output_stream = &filter;
-    
-                    // Set counter_ptr_ for indexing
-                    if (options_.getWriteIndex())
-                    {
-                        counter_ptr_ = &counter_filter;
-                    }
-                    else
-                    {
-                        counter_ptr_ = nullptr;
-                    }
+                    // Push filters based on indexing option
+if (options_.getWriteIndex()) filter.push(counter_filter);
+filter.push(*pigz_pipe);
+output_stream = &filter;
+
+// Set counter pointer
+counter_ptr_ = options_.getWriteIndex() ? &counter_filter : nullptr;
                 }
                 else
                 {
@@ -4048,7 +4042,7 @@ namespace OpenMS::Internal
         }
         if (renew_native_ids)
         {
-            warning(STORE, "Invalid native IDs detected. Using spectrum identifier nativeID format for all spectra.");
+          warning(STORE, String("Invalid native IDs detected. Using spectrum identifier nativeID format (spectrum=xsd:nonNegativeInteger) for all spectra."));
         }
   
         for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
@@ -4142,7 +4136,7 @@ namespace OpenMS::Internal
     {
         filter.reset();
     }
-    logger_.endProgress(total_items);
+    logger_.endProgress(os.tellp());
     OPENMS_LOG_INFO << stored_spectra << " spectra and "
                     << stored_chromatograms << " chromatograms stored.\n";
     
