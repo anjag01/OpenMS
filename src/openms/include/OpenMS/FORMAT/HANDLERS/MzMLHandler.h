@@ -180,8 +180,6 @@ public:
 
 protected:
 
-      mutable std::vector<std::function<void()>> cleanup_tasks_;
-
       /// delegated constructor for the two public versions
       MzMLHandler(const String& filename, const String& version, const ProgressLogger& logger);
 
@@ -394,9 +392,6 @@ protected:
 
       /// map pointer for writing
       const MapType* cexp_{ nullptr };
-
-      /// The filename we’re writing to
-        String _filename;
 
 
       /// Options that can be set for loading/storing

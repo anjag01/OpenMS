@@ -704,7 +704,7 @@ namespace OpenMS::Internal
       constexpr XMLCh s_external_spectrum_id[] = { 'e','x','t','e','r','n','a','l','S','p','e','c','t','r','u','m','I','D' , 0};
       // constexpr XMLCh s_default_source_file_ref[] = { 'd','e','f','a','u','l','t','S','o','u','r','c','e','F','i','l','e','R','e','f' , 0};
       constexpr XMLCh s_scan_settings_ref[] = { 's','c','a','n','S','e','t','t','i','n','g','s','R','e','f' , 0};
-      
+      open_tags_.push_back(sm_.convert(qname));
       
       String tag = sm_.convert(qname);
       open_tags_.push_back(tag);
@@ -873,19 +873,19 @@ namespace OpenMS::Internal
       }
       else if (tag == "cvParam")
       {
-        String value = "";
+        String value;
         optionalAttributeAsString_(value, attributes, s_value);
-        String unit_accession = "";
+        String unit_accession;
         optionalAttributeAsString_(unit_accession, attributes, s_unit_accession);
         handleCVParam_(parent_parent_tag, parent_tag, attributeAsString_(attributes, s_accession), attributeAsString_(attributes, s_name), value, unit_accession);
       }
       else if (tag == "userParam")
       {
-        String type = "";
+        String type;
         optionalAttributeAsString_(type, attributes, s_type);
-        String value = "";
+        String value;
         optionalAttributeAsString_(value, attributes, s_value);
-        String unit_accession = "";
+        String unit_accession;
         optionalAttributeAsString_(unit_accession, attributes, s_unit_accession);
         handleUserParam_(parent_parent_tag, parent_tag, attributeAsString_(attributes, s_name), type, value, unit_accession);
       }
@@ -958,8 +958,7 @@ namespace OpenMS::Internal
         String ref = attributeAsString_(attributes, s_ref);
         for (Size i = 0; i < ref_param_[ref].size(); ++i)
         {
-          handleCVParam_(parent_parent_tag, parent_tag, ref_param_[ref][i].accession, ref_param_[ref][i].name, ref_param_[ref][i].value, ref_param_[ref][i].unit_accession);
-        }
+          handleCVParam_(parent_parent_tag, parent_tag, ref_param_[ref][i].accession, ref_param_[ref][i].name, ref_param_[ref][i].value, ref_param_[ref][i].unit_accession);        }
       }
       else if (tag == "scan")
       {
@@ -3922,11 +3921,8 @@ namespace OpenMS::Internal
     
     void MzMLHandler::writeTo(std::ostream& os)
     {
-        std::string output_file = file_;
-        // Determine if compression is requested
-        String filename_lower = output_file; filename_lower.toLower();
-        const bool compress = filename_lower.hasSuffix(".gz");
-    
+      const bool compress = file_.toLower().hasSuffix(".gz");
+
         boost::iostreams::gzip_params gz_params;
         gz_params.level = boost::iostreams::gzip::best_speed;
       
@@ -3938,7 +3934,7 @@ namespace OpenMS::Internal
         UInt stored_spectra = 0, stored_chromatograms = 0;
         Internal::MzMLValidator validator(mapping_, cv_);
         std::vector<std::vector<ConstDataProcessingPtr>> dps;
-      
+        std::string output_file = file_;
         try
         {
             // Variables for stream handling
