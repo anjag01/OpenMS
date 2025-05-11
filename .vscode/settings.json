@@ -3,8 +3,6 @@
         "develop"
     ],
     "files.associations": {
-        "iosfwd": "cpp",
-        "cctype": "cpp",
         "clocale": "cpp",
         "cmath": "cpp",
         "cstdarg": "cpp",

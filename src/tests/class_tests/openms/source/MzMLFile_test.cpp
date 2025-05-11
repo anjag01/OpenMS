@@ -1217,8 +1217,8 @@ START_SECTION([EXTRA])
   mzml.load(compressed_file, exp2);
 
   // Validation
-  TEST_EQUAL(exp.getNrSpectra(), exp2.getNrSpectra());
-  TEST_EQUAL(exp.getNrChromatograms(), exp2.getNrChromatograms());
+  TEST_EQUAL(exp, exp2);
+  TEST_EQUAL(exp, exp2);
   for (Size s = 0; s < exp.size(); ++s)
   {
     TEST_EQUAL(exp[s].size(), exp2[s].size());

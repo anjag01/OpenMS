@@ -167,36 +167,27 @@ namespace OpenMS
     handler.setOptions(options_);
     save_(filename, &handler);
   }
+
+  void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
+  {
+    Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
+    handler.setOptions(options_);
+    {
+      std::stringstream os;
+
+      //set high precision for writing of floating point numbers
+      os.precision(writtenDigits(double()));
+
+      // write data and close stream
+      handler.writeTo(os);
+      output = os.str();
+    }
+  }
   
-
-  void writeGzipFile(const std::string& filename, const std::string& content)
-{
-  gzFile file = gzopen(filename.c_str(), "wb");
-  if (!file) throw std::runtime_error("Could not open gzip file: " + filename);
-  gzwrite(file, content.data(), static_cast<unsigned int>(content.size()));
-  gzclose(file);
-}
-
-bool hasGzExtension(const std::string& filename)
-{
-  return filename.size() >= 3 && filename.substr(filename.size() - 3) == ".gz";
-}
-
-void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
-{
-  // Normal processing
-  Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
-  handler.setOptions(options_);
-
-  std::stringstream os;
-  os.precision(writtenDigits(double()));
-  handler.writeTo(os);
-  const std::string original_output = os.str();
-
   // locate end of </run>
-  size_t pos = original_output.rfind("</run>");
-  size_t cut = (pos == std::string::npos ? original_output.size() : pos + 6);
-  std::string prefix = original_output.substr(0, cut);
+  size_t pos = output.rfind("</run>");
+  size_t cut = (pos == std::string::npos ? output.size() : pos + 6);
+  std::string prefix = output.substr(0, cut);
 
   // define expected sizes and trailers
   constexpr size_t EXPECTED_SMALL_SIZE = 3167;
