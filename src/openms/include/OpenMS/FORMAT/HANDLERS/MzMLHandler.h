@@ -60,6 +60,17 @@ namespace OpenMS
     class IMSDataConsumer;
   }
 
+  // Forward declaration and typedef for boost::iostreams::counter
+namespace boost {
+  namespace iostreams {
+  
+  template<typename Ch>
+  class basic_counter;
+  
+  typedef basic_counter<char> counter;
+  }
+}
+
   namespace Internal
   {
     class MzMLValidator;
