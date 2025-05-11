@@ -53,14 +53,8 @@
 // - dp_bi : dataProcessing (binary data array)
 // - dp_ch : dataProcessing (chromatogram)
 
-namespace OpenMS
-{
-  namespace Interfaces
-  {
-    class IMSDataConsumer;
-  }
 
-  // Forward declaration and typedef for boost::iostreams::counter
+ // Forward declaration and typedef for boost::iostreams::counter
 namespace boost {
   namespace iostreams {
   
@@ -70,6 +64,13 @@ namespace boost {
   typedef basic_counter<char> counter;
   }
 }
+
+namespace OpenMS
+{
+  namespace Interfaces
+  {
+    class IMSDataConsumer;
+  }
 
   namespace Internal
   {
