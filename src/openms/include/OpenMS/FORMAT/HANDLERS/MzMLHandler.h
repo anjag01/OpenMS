@@ -144,6 +144,7 @@ public:
 
       /// Docu in base class XMLHandler::writeTo
       void writeTo(std::ostream& os) override;
+      void writeTo(std::ostream &os, int num_threads);
 
 
       //@}
@@ -191,6 +192,12 @@ public:
       void setLoadDetail(const LOADDETAIL d) override;
 
 protected:
+
+ /// Number of threads to use for pigz compression (-1 means use max available)
+ int num_threads_;
+      
+ /// Setter for number of threads
+ void setNumThreads(int num_threads) { num_threads_ = num_threads; }
 
       /// delegated constructor for the two public versions
       MzMLHandler(const String& filename, const String& version, const ProgressLogger& logger);
