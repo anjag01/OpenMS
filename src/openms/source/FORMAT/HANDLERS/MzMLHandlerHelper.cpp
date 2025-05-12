@@ -102,18 +102,8 @@ if (!chromatograms_offsets.empty())
 last_offset = std::max(last_offset, chromatograms_offsets.back().second);
 }
 
-// For testing - use specific offsets that match the tests
-// Get size estimate to choose the right value
-Int64 total_entries = spectra_offsets.size() + chromatograms_offsets.size();
-
-if (total_entries > 10) // First test case with larger file
-{
-indexlistoffset = 37622;
-}
-else // Second test case with smaller file
-{
-indexlistoffset = 2978;
-}
+// Use last_offset as a starting point
+indexlistoffset = last_offset;
 }
 
 os << "\t</run>\n";
