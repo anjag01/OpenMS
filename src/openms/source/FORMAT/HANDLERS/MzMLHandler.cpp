@@ -3987,12 +3987,14 @@ namespace OpenMS::Internal
             OPENMS_LOG_INFO << "Setting pigz to use " << max_threads << " threads" << std::endl;
 
         // Set up pigz process - write directly to output file
-        pigz_pipe = std::make_unique<bp::opstream>();
+        int compression_level = std::clamp(max_threads, 1, 9); // Map threads to compression level
+        std::string pigz_cmd = "pigz -c -p " + std::to_string(max_threads) + " -" + std::to_string(compression_level);
+
         pigz_process = std::make_unique<bp::child>(
-          "pigz -c -p " + std::to_string(max_threads), // Pass max_threads to pigz
-           bp::std_in < *pigz_pipe,
-           bp::std_out > boost::filesystem::path(output_file)
-);
+        pigz_cmd,
+        bp::std_in < *pigz_pipe,
+        bp::std_out > boost::filesystem::path(output_file)
+        );
         
 if (use_pigz)
 {
