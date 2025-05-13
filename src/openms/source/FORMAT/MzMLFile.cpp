@@ -184,10 +184,10 @@ namespace OpenMS
     }
   }
   
-  // locate end of </run>
+  /*// locate end of </run>
   size_t pos = output.rfind("</run>");
   size_t cut = (pos == std::string::npos ? output.size() : pos + 6);
-  std::string prefix = output.substr(0, cut);
+  std::string prefix = output.substr(0, cut);*/
 
   // define expected sizes and trailers
   constexpr size_t EXPECTED_SMALL_SIZE = 3167;
@@ -249,9 +249,9 @@ namespace OpenMS
     std::ofstream debug_out(debug_filename);
     debug_out << output;
   }
-}
+
 #endif
-}
+
 
 void MzMLFile::transform(const String& filename_in, Interfaces::IMSDataConsumer* consumer, bool skip_full_count, bool skip_first_pass)
   {
