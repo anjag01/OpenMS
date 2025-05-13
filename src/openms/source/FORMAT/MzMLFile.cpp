@@ -185,18 +185,29 @@ void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
 {
     // Create an MzMLHandler instance with the PeakMap data
     Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
-    handler.setOptions(options_); 
     
+    // Create a copy of options and disable indexing
+    PeakFileOptions temp_options = options_;
+    temp_options.setWriteIndex(false); // Disable indexing
+    handler.setOptions(temp_options);
+
     // Use a stringstream to capture the output of writeTo
     std::stringstream os;
     os.precision(writtenDigits(double())); 
 
-    // Call writeTo to generate the mzML content
+    // Add XML declaration
+    os << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
+
+    // Call writeTo to generate the mzML content after the declaration
     handler.writeTo(os);
 
     // Assign the generated content to the output string
     output = os.str();
+    OPENMS_LOG_DEBUG << "storeBuffer output size: " << output.size() << std::endl;
+    OPENMS_LOG_DEBUG << "Indexing enabled: " << temp_options.getWriteIndex() << std::endl;
 }
+
+
 
 void MzMLFile::transform(const String& filename_in, Interfaces::IMSDataConsumer* consumer, bool skip_full_count, bool skip_first_pass)
   {
