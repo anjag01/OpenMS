@@ -16,6 +16,7 @@
 #include <OpenMS/FORMAT/VALIDATORS/MzMLValidator.h>
 #include <OpenMS/INTERFACES/IMSDataConsumer.h>
 #include <OpenMS/SYSTEM/File.h>
+#include <OpenMS/SYSTEM/ExternalProcess.h>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/device/file.hpp>
@@ -28,8 +29,14 @@
 #include <omp.h>
 
 
+
 namespace OpenMS::Internal
+{  
+  // Impl structure
+  struct MzMLHandler::Impl 
 {
+  boost::iostreams::counter* counter_ptr_ = nullptr;
+};
   namespace bp  = boost::process;
   namespace bio = boost::iostreams;
 
@@ -92,6 +99,7 @@ namespace OpenMS::Internal
       return load_detail_;
     }
 
+    
     /// handler which support partial loading, implement this method
     void MzMLHandler::setLoadDetail(const XMLHandler::LOADDETAIL d)
     {
@@ -704,7 +712,7 @@ namespace OpenMS::Internal
       constexpr XMLCh s_external_spectrum_id[] = { 'e','x','t','e','r','n','a','l','S','p','e','c','t','r','u','m','I','D' , 0};
       // constexpr XMLCh s_default_source_file_ref[] = { 'd','e','f','a','u','l','t','S','o','u','r','c','e','F','i','l','e','R','e','f' , 0};
       constexpr XMLCh s_scan_settings_ref[] = { 's','c','a','n','S','e','t','t','i','n','g','s','R','e','f' , 0};
-      
+      open_tags_.push_back(sm.convert(qname));
       
       String tag = sm_.convert(qname);
       open_tags_.push_back(tag);
@@ -873,19 +881,19 @@ namespace OpenMS::Internal
       }
       else if (tag == "cvParam")
       {
-        String value = "";
+        String value;
         optionalAttributeAsString_(value, attributes, s_value);
-        String unit_accession = "";
+        String unit_accession;
         optionalAttributeAsString_(unit_accession, attributes, s_unit_accession);
         handleCVParam_(parent_parent_tag, parent_tag, attributeAsString_(attributes, s_accession), attributeAsString_(attributes, s_name), value, unit_accession);
       }
       else if (tag == "userParam")
       {
-        String type = "";
+        String type;
         optionalAttributeAsString_(type, attributes, s_type);
-        String value = "";
+        String value;
         optionalAttributeAsString_(value, attributes, s_value);
-        String unit_accession = "";
+        String unit_accession;
         optionalAttributeAsString_(unit_accession, attributes, s_unit_accession);
         handleUserParam_(parent_parent_tag, parent_tag, attributeAsString_(attributes, s_name), type, value, unit_accession);
       }
@@ -958,8 +966,7 @@ namespace OpenMS::Internal
         String ref = attributeAsString_(attributes, s_ref);
         for (Size i = 0; i < ref_param_[ref].size(); ++i)
         {
-          handleCVParam_(parent_parent_tag, parent_tag, ref_param_[ref][i].accession, ref_param_[ref][i].name, ref_param_[ref][i].value, ref_param_[ref][i].unit_accession);
-        }
+          handleCVParam_(parent_parent_tag, parent_tag, ref_param_[ref][i].accession, ref_param_[ref][i].name, ref_param_[ref][i].value, ref_param_[ref][i].unit_accession);        }
       }
       else if (tag == "scan")
       {
@@ -3922,18 +3929,14 @@ namespace OpenMS::Internal
     
     void MzMLHandler::writeTo(std::ostream& os)
     {
-        spectra_offsets_.clear();
-        chromatograms_offsets_.clear();
-    
-        std::string output_file = file_;
-        // Determine if compression is requested
-        String filename_lower = output_file;
-        filename_lower.toLower();
-        const bool compress = filename_lower.hasSuffix(".gz");
-    
+      const bool compress = file_.toLower().hasSuffix(".gz");
+
         boost::iostreams::gzip_params gz_params;
         gz_params.level = boost::iostreams::gzip::best_speed;
-    
+        // INFO : do not try to be smart and skip empty spectra or
+        // chromatograms. There can be very good reasons for this (e.g. if the
+        // meta information needs to be stored here but the actual data is
+        // stored somewhere else).
         // Prepare experiment and progress tracking
         const MapType& exp = *cexp_;
         Size total_items = exp.size() + exp.getChromatograms().size();
@@ -3942,7 +3945,7 @@ namespace OpenMS::Internal
         UInt stored_spectra = 0, stored_chromatograms = 0;
         Internal::MzMLValidator validator(mapping_, cv_);
         std::vector<std::vector<ConstDataProcessingPtr>> dps;
-    
+        std::string output_file = file_;
         try
         {
             // Variables for stream handling
@@ -3952,245 +3955,187 @@ namespace OpenMS::Internal
             std::unique_ptr<bp::opstream> pigz_pipe;
             std::unique_ptr<bp::child> pigz_process;
             std::unique_ptr<std::ofstream> file_stream;
+            
     
-            // Decide compression
+            // decide compression
             if (compress)
-            {
-                bool pigz_available = false;
-    #ifdef _WIN32
-                FILE* pipe = _popen("pigz --version", "r");
-    #else
-                FILE* pipe = popen("pigz --version", "r");
-    #endif
-                if (pipe)
-                {
-                    char buffer[128];
-                    while (fgets(buffer, sizeof(buffer), pipe))
-                    {
-                        if (strstr(buffer, "pigz") || strstr(buffer, "Pigz"))
-                        {
-                            pigz_available = true;
-                            break;
-                        }
-                    }
-    #ifdef _WIN32
-                    _pclose(pipe);
-    #else
-                    pclose(pipe);
-    #endif
-                }
-    
-                if (pigz_available)
-                {
-                    OPENMS_LOG_INFO << "Using pigz for compression (parallel gzip)" << std::endl;
-                    int max_threads = omp_get_max_threads();
-                    OPENMS_LOG_INFO << "Setting pigz to use " << max_threads << " threads" << std::endl;
-                    pigz_pipe = std::make_unique<bp::opstream>();
-                    pigz_process = std::make_unique<bp::child>(
-                        "pigz -c -p " + std::to_string(max_threads),
-                        bp::std_in < *pigz_pipe,
-                        bp::std_out > boost::filesystem::path(output_file)
-                    );
-    
-                    if (options_.getWriteIndex())
-                    {
-                        filter.push(counter_filter);
-                    }
-                    filter.push(*pigz_pipe);
-                    output_stream = &filter;
-                    counter_ptr_ = options_.getWriteIndex() ? &counter_filter : nullptr;
-                }
-                else
-                {
-                    OPENMS_LOG_INFO << "Using Boost gzip compression" << std::endl;
-                    if (options_.getWriteIndex())
-                    {
-                        filter.push(counter_filter);
-                    }
-                    filter.push(bio::gzip_compressor(gz_params));
-                    filter.push(os);
-                    output_stream = &filter;
-                    counter_ptr_ = options_.getWriteIndex() ? &counter_filter : nullptr;
-                }
-            }
-            else
-            {
-                output_stream = &os;
-                counter_ptr_ = nullptr;
-            }
-    
-            // Debug: Log indexing setting
-            OPENMS_LOG_DEBUG << "Indexing enabled: " << options_.getWriteIndex() << std::endl;
-    
-            // Write opening tags
-            if (options_.getWriteIndex())
-            {
-                *output_stream << "<indexedmzML xmlns=\"http://psi.hupo.org/ms/mzml\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n";
-            }
-            *output_stream << "<mzML xmlns=\"http://psi.hupo.org/ms/mzml\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">\n";
-    
-            // Write header content
-            writeHeader_(*output_stream, exp, dps, validator);
-    
-            // Set mode flags
-            compress_mode_ = compress;
-    
-            // Write spectra
-            if (!exp.empty())
-            {
-                *output_stream << "\t\t<spectrumList count=\"" << exp.size()
-                               << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-    
-                std::set<std::string> seen_ids;
-                bool renew_native_ids = false;
-                for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
-                {
-                    if (!seen_ids.insert(exp[s_idx].getNativeID()).second)
-                    {
-                        renew_native_ids = true;
-                        warning(STORE, "Duplicate spectrum native IDs detected. Assigning unique IDs.");
-                        break;
-                    }
-                }
-                if (!renew_native_ids)
-                {
-                    for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
-                    {
-                        if (!exp[s_idx].getNativeID().has('='))
-                        {
-                            renew_native_ids = true;
-                            warning(STORE, "Invalid native IDs detected. Assigning unique spectrum IDs.");
-                            break;
-                        }
-                    }
-                }
-    
-                for (Size s_idx = 0; s_idx < exp.size(); ++s_idx)
-                {
-                    logger_.setProgress(progress++);
-    
-                    Int64 offset = -1;
-                    if (options_.getWriteIndex())
-                    {
-                        if (!compress)
-                        {
-                            offset = static_cast<Int64>(os.tellp());
-                        }
-                        else
-                        {
-                            offset = counter_filter.characters();
-                        }
-                    }
-                    std::string native_id = exp[s_idx].getNativeID();
-                    if (renew_native_ids)
-                    {
-                        native_id = "spectrum=" + String(s_idx);
-                    }
-                    if (options_.getWriteIndex() && offset != -1)
-                    {
-                        spectra_offsets_.emplace_back(native_id, offset);
-                    }
-                    writeSpectrum_(*output_stream, exp[s_idx], s_idx, validator, renew_native_ids, dps);
-                    stored_spectra++;
-                }
-                *output_stream << "\t\t</spectrumList>\n";
-            }
-    
-            // Write chromatograms
-            if (!exp.getChromatograms().empty())
-            {
-                *output_stream << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size()
-                               << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
-    
-                std::set<std::string> seen_chrom_ids;
-                bool renew_chromatogram_ids = false;
-                for (Size c_idx = 0; c_idx < exp.getChromatograms().size(); ++c_idx)
-                {
-                    if (!seen_chrom_ids.insert(exp.getChromatograms()[c_idx].getNativeID()).second)
-                    {
-                        renew_chromatogram_ids = true;
-                        warning(STORE, "Duplicate chromatogram native IDs detected. Assigning unique IDs.");
-                        break;
-                    }
-                }
-    
-                for (Size c_idx = 0; c_idx < exp.getChromatograms().size(); ++c_idx)
-                {
-                    logger_.setProgress(progress++);
-    
-                    Int64 offset = -1;
-                    if (options_.getWriteIndex())
-                    {
-                        if (!compress)
-                        {
-                            offset = static_cast<Int64>(os.tellp());
-                        }
-                        else
-                        {
-                            offset = counter_filter.characters();
-                        }
-                    }
-                    std::string chromatogram_native_id = exp.getChromatograms()[c_idx].getNativeID();
-                    if (renew_chromatogram_ids)
-                    {
-                        chromatogram_native_id = "chromatogram=" + String(c_idx);
-                    }
-                    if (options_.getWriteIndex() && offset != -1)
-                    {
-                        chromatograms_offsets_.emplace_back(chromatogram_native_id, offset);
-                    }
-                    writeChromatogram_(*output_stream, exp.getChromatograms()[c_idx], c_idx, validator);
-                    stored_chromatograms++;
-                }
-                *output_stream << "\t\t</chromatogramList>\n";
-            }
-    
-            // Write closing tags and index if enabled
-            *output_stream << "</mzML>\n";
-            if (options_.getWriteIndex())
-            {
-                MzMLHandlerHelper::writeFooter_(*output_stream, options_, spectra_offsets_, chromatograms_offsets_);
-                *output_stream << "</indexedmzML>\n";
-            }
-    
-            // Clean up
-            if (pigz_process)
-            {
-                output_stream->flush();
-                filter.reset();
-                pigz_pipe->pipe().close();
-                pigz_process->wait();
-                if (pigz_process->exit_code() != 0)
-                {
-                    throw Exception::ConversionError(
-                        __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-                        String("pigz process failed with exit code ") + pigz_process->exit_code());
-                }
-            }
-            else if (filter.size() > 0)
-            {
-                filter.reset();
-            }
-            logger_.endProgress(total_items);
-    
-            OPENMS_LOG_INFO << stored_spectra << " spectra and "
-                            << stored_chromatograms << " chromatograms stored.\n";
-        }
-        catch (const boost::iostreams::gzip_error& e)
+{
+  String proc_stdout, proc_stderr;
+  auto lam_out = [&](const String& out) { proc_stdout += out; };
+  auto lam_err = [&](const String& out) { proc_stderr += out; };
+  
+  ExternalProcess ep(lam_out, lam_err);
+  auto rt = ep.run("pigz", {"--version"}, ".", true); // runs: pigz --version
+  
+  bool pigz_available = false;
+  
+  if (rt != ExternalProcess::RETURNSTATE::SUCCESS)
+  {
+    writeLogError_("pigz --version failed");
+    writeLogError_("stdout: " + proc_stdout);
+    writeLogError_("stderr: " + proc_stderr);
+  }
+  else if (proc_stdout.hasSubstring("pigz") || proc_stdout.hasSubstring("Pigz")) // improve with regex if needed
+  {
+    pigz_available = true;
+  }
+    }
+
+    if (pigz_available)
+    {
+        OPENMS_LOG_INFO << "Using pigz for compression (parallel gzip)" << std::endl;
+        int max_threads = omp_get_max_threads();
+            OPENMS_LOG_INFO << "Setting pigz to use " << max_threads << " threads" << std::endl;
+
+        // Set up pigz process - write directly to output file
+        int compression_level = std::clamp(max_threads, 1, 9); // Map threads to compression level
+        std::string pigz_cmd = "pigz -c -p " + std::to_string(max_threads) + " -" + std::to_string(compression_level);
+
+        pigz_process = std::make_unique<bp::child>(
+        pigz_cmd,
+        bp::std_in < *pigz_pipe,
+        bp::std_out > boost::filesystem::path(output_file)
+        );
+        
+if (use_pigz)
+{
+    if (options_.getWriteIndex())
+    {
+        filter.push(counter_filter);
+        impl_->counter_ptr_ = &counter_filter;
+    }
+    else
+    {
+      impl_->counter_ptr_ = nullptr;
+    }
+
+    filter.push(*pigz_pipe);
+    output_stream = &filter;
+}
+else
+{
+    OPENMS_LOG_INFO << "Using Boost gzip compression" << std::endl;
+
+    if (options_.getWriteIndex())
+    {
+        filter.push(counter_filter);
+        impl_->counter_ptr_ = &counter_filter;
+    }
+    else
+    {
+      impl_->counter_ptr_ = nullptr;
+    }
+
+    filter.push(bio::gzip_compressor(gz_params));
+    filter.push(os);
+    output_stream = &filter;
+}
+
+  
+    // Write header
+    writeHeader_(*output_stream, exp, dps, validator);
+  
+    // Set mode flags
+    compress_mode_ = compress;
+  
+    // Write spectra
+const SpectrumType& spec = exp[s_idx];
+writeSpectrum_(os, spec, s_idx, validator, renew_native_ids, dps);
+++stored_spectra;
+}
+*output_stream << "\t\t</spectrumList>\n";
+
+// Write chromatograms
+if (!exp.getChromatograms().empty())
+{
+    // INFO : do not try to be smart and skip empty spectra or
+    // chromatograms. There can be very good reasons for this (e.g. if the
+    // meta information needs to be stored here but the actual data is
+    // stored somewhere else).
+    os << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+    for (Size c_idx = 0; c_idx != exp.getChromatograms().size(); ++c_idx)
+    {
+        logger_.setProgress(progress++);
+        const ChromatogramType& chromatogram = exp.getChromatograms()[c_idx];
+        writeChromatogram_(os, chromatogram, c_idx, validator);
+        ++stored_chromatograms;
+    }
+    *output_stream << "\t\t</chromatogramList>\n";
+}
+
+  
+if (!exp.getChromatograms().empty())
+{
+  if (options_.getWriteIndex())
+{
+  Int64 offset = -1;
+  if (!compress)
+  {
+    offset = static_cast<Int64>(os.tellp());
+  }
+  else if (impl_->counter_ptr_ != nullptr)
+  {
+      offset = impl_->counter_ptr_->characters();
+  }
+
+  if (offset != -1)
+  {
+    chromatograms_offsets_.emplace_back(chromatogram.getNativeID(), offset);
+  }
+}
+  *output_stream << "\t\t<chromatogramList count=\"" << exp.getChromatograms().size() << "\" defaultDataProcessingRef=\"dp_sp_0\">\n";
+  for (Size c_idx = 0; c_idx < exp.getChromatograms().size(); ++c_idx)
+  {
+    logger_.setProgress(progress++);
+    const ChromatogramType& chromatogram = exp.getChromatograms()[c_idx];
+    writeChromatogram_(*output_stream, chromatogram, c_idx, validator);
+    ++stored_chromatograms;
+  }
+  *output_stream << "\t\t</chromatogramList>\n";
+}
+
+
+    // Write footer
+    MzMLHandlerHelper::writeFooter_(*output_stream, options_, spectra_offsets_, chromatograms_offsets_);
+
+
+    // Clean up
+    if (pigz_process)
+    {
+        output_stream->flush();
+        filter.reset();
+        pigz_pipe->pipe().close(); // Signal EOF to pigz
+        pigz_process->wait(); // Wait for pigz to finish
+        if (pigz_process->exit_code() != 0)
         {
             throw Exception::ConversionError(
                 __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-                String("GZip compression failed for '") + output_file + "' (" + String(e.error()) + "): " + e.what());
+                String("pigz process failed with exit code ") + pigz_process->exit_code());
         }
-        catch (const std::ios_base::failure& e)
-        {
-            throw Exception::ConversionError(
-                __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
-                String("Stream error while writing to '") + output_file + "': " + e.what());
-        }
-    } 
-
-
+    }
+    else if (filter.size() > 0)
+    {
+        filter.reset();
+    }
+    logger_.endProgress(os.tellp());
+    OPENMS_LOG_INFO << stored_spectra << " spectra and "
+                    << stored_chromatograms << " chromatograms stored.\n";
+    
+}
+    catch (const boost::iostreams::gzip_error& e)
+    {
+        throw Exception::ConversionError(
+            __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+            String("GZip compression failed for '") + output_file + "' (" + String(e.error()) + "): " + e.what());
+    }
+    catch (const std::ios_base::failure& e)
+    {
+        throw Exception::ConversionError(
+            __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+            String("Stream error while writing to '") + output_file + "': " + e.what());
+    }
+}
+  
     void MzMLHandler::writeHeader_(std::ostream& os,
                                    const MapType& exp,
                                    std::vector<std::vector< ConstDataProcessingPtr > >& dps,
@@ -5149,7 +5094,7 @@ if (options_.getWriteIndex())
     Int64 offset = 0;
     if (compress_mode_)
     {
-        if (!counter_ptr_)
+        if (!_ptr_)
         {
             throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
                 "Compressed mode active but counter filter not available for offset calculation.");
@@ -5740,7 +5685,6 @@ template void MzMLHandler::writeBinaryDataArray_<double>(std::ostream& os,
                               std::vector<double>& data_to_encode,
                               bool is32bit,
                               String array_type);
-
 
 
 void MzMLHandler::writeChromatogram_(std::ostream& os,

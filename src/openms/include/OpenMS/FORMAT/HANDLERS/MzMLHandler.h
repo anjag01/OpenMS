@@ -26,9 +26,10 @@
 #include <vector>
 #include <string>
 #include <utility>
-#include <OpenMS/CONCEPT/Types.h>       
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/filter/counter.hpp>
+#include <OpenMS/CONCEPT/Types.h>       // for Int64
+#include <memory>
+
+
 
 
 #include <map>
@@ -195,7 +196,8 @@ protected:
       typedef MzMLHandlerHelper::BinaryData BinaryData;
 
       bool compress_mode_ = false;
-      boost::iostreams::counter* counter_ptr_ = nullptr; 
+      struct Impl; // forward declaration
+      std::unique_ptr<Impl> impl_; // Pimpl pointer
 
 
       /**@name Helper functions for storing data in memory
@@ -392,9 +394,6 @@ protected:
 
       /// map pointer for writing
       const MapType* cexp_{ nullptr };
-
-      /// The filename we’re writing to
-        String _filename;
 
 
       /// Options that can be set for loading/storing
