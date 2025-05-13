@@ -27,8 +27,7 @@
 #include <string>
 #include <utility>
 #include <OpenMS/CONCEPT/Types.h>       // for Int64
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/filter/counter.hpp>
+#include <memory>
 
 
 
@@ -197,7 +196,8 @@ protected:
       typedef MzMLHandlerHelper::BinaryData BinaryData;
 
       bool compress_mode_ = false;
-      boost::iostreams::counter* counter_ptr_ = nullptr; 
+      struct Impl; // forward declaration
+      std::unique_ptr<Impl> impl_; // Pimpl pointer
 
 
       /**@name Helper functions for storing data in memory

@@ -28,6 +28,11 @@
 #include <iostream>
 #include <omp.h>
 
+// Impl structure
+struct OpenMS::Internal::MzMLHandler::Impl
+{
+  boost::iostreams::counter* counter_ptr_ = nullptr;
+};
 
 namespace OpenMS::Internal
 {
@@ -3994,11 +3999,11 @@ if (use_pigz)
     if (options_.getWriteIndex())
     {
         filter.push(counter_filter);
-        counter_ptr_ = &counter_filter;
+        impl_->counter_ptr_ = &counter_filter;
     }
     else
     {
-        counter_ptr_ = nullptr;
+      impl_->counter_ptr_ = nullptr;
     }
 
     filter.push(*pigz_pipe);
@@ -4011,11 +4016,11 @@ else
     if (options_.getWriteIndex())
     {
         filter.push(counter_filter);
-        counter_ptr_ = &counter_filter;
+        impl_->counter_ptr_ = &counter_filter;
     }
     else
     {
-        counter_ptr_ = nullptr;
+      impl_->counter_ptr_ = nullptr;
     }
 
     filter.push(bio::gzip_compressor(gz_params));
@@ -4065,9 +4070,9 @@ if (!exp.getChromatograms().empty())
   {
     offset = static_cast<Int64>(os.tellp());
   }
-  else if (counter_ptr_ != nullptr)
+  else if (impl_->counter_ptr_ != nullptr)
   {
-    offset = counter_ptr_->characters();
+      offset = impl_->counter_ptr_->characters();
   }
 
   if (offset != -1)
