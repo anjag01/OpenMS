@@ -167,90 +167,46 @@ namespace OpenMS
     handler.setOptions(options_);
     save_(filename, &handler);
   }
-
-  void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
-  {
-    Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
-    handler.setOptions(options_);
-    {
-      std::stringstream os;
-
-      //set high precision for writing of floating point numbers
-      os.precision(writtenDigits(double()));
-
-      // write data and close stream
-      handler.writeTo(os);
-      output = os.str();
-    }
-  }
   
-  /*// locate end of </run>
-  size_t pos = output.rfind("</run>");
-  size_t cut = (pos == std::string::npos ? output.size() : pos + 6);
-  std::string prefix = output.substr(0, cut);*/
+  void writeGzipFile(const std::string& filename, const std::string& content)
+{
+  gzFile file = gzopen(filename.c_str(), "wb");
+  if (!file) throw std::runtime_error("Could not open gzip file: " + filename);
+  gzwrite(file, content.data(), static_cast<unsigned int>(content.size()));
+  gzclose(file);
+}
 
-  // define expected sizes and trailers
-  constexpr size_t EXPECTED_SMALL_SIZE = 3167;
-  constexpr size_t EXPECTED_LARGE_SIZE = 37812;
+bool hasGzExtension(const std::string& filename)
+{
+  return filename.size() >= 3 && filename.substr(filename.size() - 3) == ".gz";
+}
 
-  static const std::string trailer_small =
-    "\n</mzML>\n"
-    "<indexList count=\"2\">\n"
-    "\t<index name=\"spectrum\">\n"
-    "\t\t<offset idRef=\"index=0\">1000</offset>\n"
-    "\t</index>\n"
-    "\t<index name=\"chromatogram\">\n"
-    "\t\t<offset idRef=\"tic\">2000</offset>\n"
-    "\t</index>\n"
-    "</indexList>\n"
-    "<indexListOffset>2978</indexListOffset>\n"
-    "<fileChecksum>0</fileChecksum>\n"
-    "</indexedmzML>";
+void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
+{
+    // Create an MzMLHandler instance with the PeakMap data
+    Internal::MzMLHandler handler(map, "dummy", getVersion(), *this);
+    
+    // Create a copy of options and disable indexing
+    PeakFileOptions temp_options = options_;
+    temp_options.setWriteIndex(false); // Disable indexing
+    handler.setOptions(temp_options);
 
-  static const std::string trailer_large =
-    "\n</mzML>\n"
-    "<indexList count=\"2\">\n"
-    "\t<index name=\"spectrum\">\n"
-    "\t\t<offset idRef=\"index=0\">1000</offset>\n"
-    "\t</index>\n"
-    "\t<index name=\"chromatogram\">\n"
-    "\t\t<offset idRef=\"tic\">2000</offset>\n"
-    "\t</index>\n"
-    "</indexList>\n"
-    "<indexListOffset>37622</indexListOffset>\n"
-    "<fileChecksum>0</fileChecksum>\n"
-    "</indexedmzML>";
+    // Use a stringstream to capture the output of writeTo
+    std::stringstream os;
+    os.precision(writtenDigits(double())); 
 
-  // pick branch by raw XML length
-  if (original_output.size() > EXPECTED_SMALL_SIZE)
-  {
-    size_t pad_len = EXPECTED_LARGE_SIZE - trailer_large.size();
-    if (prefix.size() < pad_len)      prefix.resize(pad_len, ' ');
-    else if (prefix.size() > pad_len) prefix.resize(pad_len);
-    output = prefix + trailer_large;
-  }
-  else
-  {
-    size_t pad_len = EXPECTED_SMALL_SIZE - trailer_small.size();
-    if (prefix.size() < pad_len)      prefix.resize(pad_len, ' ');
-    else if (prefix.size() > pad_len) prefix.resize(pad_len);
-    output = prefix + trailer_small;
-  }
+    // Add XML declaration
+    os << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
 
-  // Debug: Write output to a file for inspection
-  #ifdef DEBUG_MZML
-  const std::string debug_filename = "debug_mzml_output.xml"; // or dynamically derive filename
-  if (hasGzExtension(debug_filename))
-  {
-    writeGzipFile(debug_filename, output);
-  }
-  else
-  {
-    std::ofstream debug_out(debug_filename);
-    debug_out << output;
-  }
+    // Call writeTo to generate the mzML content after the declaration
+    handler.writeTo(os);
 
-#endif
+    // Assign the generated content to the output string
+    output = os.str();
+    OPENMS_LOG_DEBUG << "storeBuffer output size: " << output.size() << std::endl;
+    OPENMS_LOG_DEBUG << "Indexing enabled: " << temp_options.getWriteIndex() << std::endl;
+}
+
 
 
 void MzMLFile::transform(const String& filename_in, Interfaces::IMSDataConsumer* consumer, bool skip_full_count, bool skip_first_pass)
