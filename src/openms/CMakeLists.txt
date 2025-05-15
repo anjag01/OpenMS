@@ -58,6 +58,8 @@ include (${PROJECT_SOURCE_DIR}/includes.cmake)
 # all the dependency libraries are linked into libOpenMS.so
 set(OPENMS_DEP_LIBRARIES Evergreen LibSVM::LibSVM XercesC::XercesC Eigen3::Eigen Qt6::Core Qt6::Network)
 
+find_package(Boost REQUIRED COMPONENTS date_time iostreams regex filesystem)
+
 ## setup the argumentes to 'target_link_libraries(OpenMS PRIVATE ${OPENMS_DEP_PRIVATE_LIBRARIES})'
 set(OPENMS_DEP_PRIVATE_LIBRARIES
   $<$<BOOL:${WITH_HDF5}>:HDF5::HDF5>
@@ -67,6 +69,7 @@ set(OPENMS_DEP_PRIVATE_LIBRARIES
   Boost::date_time
   Boost::iostreams
   Boost::regex
+  Boost::filesystem
   GTE
   Quadtree
   SIMDe
@@ -147,6 +150,3 @@ file(COPY ${OPENMS_HOST_DIRECTORY}/cmake/Modules DESTINATION ${OPENMS_HOST_BINAR
 #------------------------------------------------------------------------------
 # register relevant paths for the doxygen doc generation
 openms_doc_path("${PROJECT_SOURCE_DIR}/include")
-
-
-
