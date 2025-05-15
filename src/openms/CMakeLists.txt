@@ -9,6 +9,8 @@
 project("OpenMS")
 
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -57,8 +59,14 @@ include (${PROJECT_SOURCE_DIR}/includes.cmake)
 #------------------------------------------------------------------------------
 # all the dependency libraries are linked into libOpenMS.so
 set(OPENMS_DEP_LIBRARIES Evergreen LibSVM::LibSVM XercesC::XercesC Eigen3::Eigen Qt6::Core Qt6::Network)
+set(Boost_USE_STATIC_LIBS OFF)        # Use shared libraries
+set(Boost_USE_MULTITHREADED ON)       # Use multithreaded libraries
+set(Boost_USE_STATIC_RUNTIME OFF)     # Use shared runtime
+set(CMAKE_PREFIX_PATH "/buffer/ag_bsc/pmsb/anjag01/contrib-build/lib/cmake")
+find_package(Boost 1.78.0 REQUIRED COMPONENTS date_time iostreams regex filesystem)#:contentReference[oaicite:29]{index=29}
+set(Boost_DEBUG ON)
 
-find_package(Boost REQUIRED COMPONENTS date_time iostreams regex filesystem)
+
 
 ## setup the argumentes to 'target_link_libraries(OpenMS PRIVATE ${OPENMS_DEP_PRIVATE_LIBRARIES})'
 set(OPENMS_DEP_PRIVATE_LIBRARIES

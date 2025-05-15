@@ -712,7 +712,7 @@ namespace OpenMS::Internal
       constexpr XMLCh s_external_spectrum_id[] = { 'e','x','t','e','r','n','a','l','S','p','e','c','t','r','u','m','I','D' , 0};
       // constexpr XMLCh s_default_source_file_ref[] = { 'd','e','f','a','u','l','t','S','o','u','r','c','e','F','i','l','e','R','e','f' , 0};
       constexpr XMLCh s_scan_settings_ref[] = { 's','c','a','n','S','e','t','t','i','n','g','s','R','e','f' , 0};
-      open_tags_.push_back(sm.convert(qname));
+      //open_tags_.push_back(sm.convert(qname));
       
       String tag = sm_.convert(qname);
       open_tags_.push_back(tag);
@@ -5050,12 +5050,12 @@ if (options_.getWriteIndex())
     Int64 offset = 0;
     if (compress_mode_)
     {
-        if (!_ptr_)
+      if (!impl_->counter_ptr_)
         {
             throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
                 "Compressed mode active but counter filter not available for offset calculation.");
         }
-        offset = counter_ptr_->characters();
+        offset = impl_->counter_ptr_->characters();
     }
     else
     {
@@ -5656,12 +5656,12 @@ void MzMLHandler::writeChromatogram_(std::ostream& os,
       Int64 offset = 0;
       if (compress_mode_)
       {
-          if (!counter_ptr_)
+        if (!impl_->counter_ptr_)
           {
               throw Exception::ConversionError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
                   "Compressed mode active but counter filter not available for offset calculation.");
           }
-          offset = counter_ptr_->characters();
+          offset = impl_->counter_ptr_->characters();
       }
       else
       {

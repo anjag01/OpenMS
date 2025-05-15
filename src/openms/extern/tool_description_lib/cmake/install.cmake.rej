@@ -1,0 +1,11 @@
+--- src/openms/extern/tool_description_lib/cmake/install.cmake.orig
++++ src/openms/extern/tool_description_lib/cmake/install.cmake
+@@ -11,7 +11,7 @@
+ install(TARGETS tdl EXPORT tdl-targets)
+ # Only install yaml-cpp if it's not already installed globally on the system
+ # (to avoid potential conflicts with other installed versions).
+-install(TARGETS yaml-cpp EXPORT tdl-targets)
++# install(TARGETS yaml-cpp EXPORT tdl-targets)
+ 
+ # Install includes
+ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/ DESTINATION include/OpenMS/SYSTEM/tdl FILES_MATCHING PATTERN "*.hpp")
