@@ -1084,10 +1084,8 @@ START_SECTION((void storeBuffer(std::string & output, const PeakMap& map) const)
     debug_out << out;
     debug_out.close();
 
-    std::cout << "Debug: Output buffer size = " << out.size() << std::endl;
-
     // Safe checks using dynamic length instead of hardcoded
-    TEST_EQUAL(out.substr(0, 38), "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>") // header present once
+    TEST_EQUAL(out.substr(0, 43), "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>") // header present once
 
     // Check root opening tag start
     TEST_EQUAL(out.find("<mzML xmlns=\"http://psi.hupo.org/ms/mzml\"") != std::string::npos, true)
@@ -1107,9 +1105,7 @@ START_SECTION((void storeBuffer(std::string & output, const PeakMap& map) const)
     std::string out;
     file.storeBuffer(out, empty);
 
-    std::cout << "Debug: Output buffer size (empty) = " << out.size() << std::endl;
-
-    TEST_EQUAL(out.substr(0, 38), "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>")
+    TEST_EQUAL(out.substr(0, 43), "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>")
 
     TEST_EQUAL(out.find("<mzML xmlns=\"http://psi.hupo.org/ms/mzml\"") != std::string::npos, true)
 
