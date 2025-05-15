@@ -195,9 +195,6 @@ void MzMLFile::storeBuffer(std::string& output, const PeakMap& map) const
     std::stringstream os;
     os.precision(writtenDigits(double())); 
 
-    // Add XML declaration
-    os << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n";
-
     // Call writeTo to generate the mzML content after the declaration
     handler.writeTo(os);
 
