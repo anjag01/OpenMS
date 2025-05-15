@@ -1148,6 +1148,18 @@ START_SECTION(bool isSemanticallyValid(const String& filename, StringList& error
   //written empty file
   NEW_TMP_FILE(tmp_filename);
   file.store(tmp_filename,e);
+  // Check file content
+  std::ifstream file_check(tmp_filename.c_str());
+  if (!file_check.is_open()) {
+    std::cout << "ERROR: Could not open " << tmp_filename << std::endl;
+  } else {
+    char buffer[256] = {0};
+    file_check.read(buffer, 255);
+    std::streamsize bytes_read = file_check.gcount();
+    file_check.close();
+    std::cout << "Read " << bytes_read << " bytes from " << tmp_filename << ": "
+              << std::string(buffer, bytes_read).substr(0, 50) << std::endl;
+  }
   TEST_EQUAL(file.isSemanticallyValid(tmp_filename, errors, warnings),true);
   TEST_EQUAL(errors.size(),0)
   TEST_EQUAL(warnings.size(),0)
@@ -1222,6 +1234,7 @@ START_SECTION([EXTRA])
   mzml.load(OPENMS_GET_TEST_DATA_PATH("ChromatogramExtractor_input.mzML"), exp);
 
   // Save with gzip compression
+  mzml.getOptions().setCompression(true);
   std::string compressed_file;
   NEW_TMP_FILE_EXT(compressed_file, ".gz");
   mzml.store(compressed_file, exp);

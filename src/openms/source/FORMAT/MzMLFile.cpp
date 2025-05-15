@@ -112,31 +112,40 @@ namespace OpenMS
   }
 
   void MzMLFile::safeParse_(const String& filename, Internal::XMLHandler* handler)
-  {
-    // Safe parse that only wraps parsing errors, but lets FileNotFound bubble up
-    try
-    {
-      // attempt the real parse
-      parse_(filename, handler);
-    }
-    catch (Exception::FileNotFound& e)
-    {
-      // the file wasn’t there – rethrow so caller sees FileNotFound
-      throw;
-    }
-    catch (Exception::BaseException& e)
-    {
-      // any other OpenMS exception during parsing becomes a ParseError
-      throw Exception::ParseError(
-        __FILE__,
-        __LINE__,
-        __FUNCTION__,
-        /*expression=*/"",
-        /*message=*/e.getMessage()
-      );
-    }
+{
+  // Check if file is readable and has XML-like content
+  std::ifstream file(filename.c_str());
+  if (!file.is_open()) {
+    throw Exception::FileNotFound(
+      __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+      "Cannot open file: " + filename);
   }
-  
+  char buffer[10];
+  file.read(buffer, 9);
+  std::streamsize bytes_read = file.gcount();
+  file.close();
+  if (bytes_read == 0) {
+    throw Exception::ParseError(
+      __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+      "", "Empty file: " + filename);
+  }
+  if (std::string(buffer, bytes_read).find("<?xml") == std::string::npos) {
+    throw Exception::ParseError(
+      __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+      "", "File does not start with XML declaration: " + filename);
+  }
+  try {
+    parse_(filename, handler);
+  }
+  catch (Exception::FileNotFound& e) {
+    throw;
+  }
+  catch (Exception::BaseException& e) {
+    throw Exception::ParseError(
+      __FILE__, __LINE__, OPENMS_PRETTY_FUNCTION,
+      "", e.getMessage());
+  }
+}
 
   void MzMLFile::loadBuffer(const std::string& buffer, PeakMap& map)
   {
