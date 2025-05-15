@@ -72,6 +72,9 @@ namespace OpenMS::Internal
         OPENMS_LOG_ERROR << "MzMLHandler was initialized with an invalid version number: " << version_ << std::endl;
       }
       pg_outer = logger; // inherit the logtype etc
+
+        // Initialize pimpl pointer
+        impl_ = std::make_unique<Impl>();
     }
 
 
